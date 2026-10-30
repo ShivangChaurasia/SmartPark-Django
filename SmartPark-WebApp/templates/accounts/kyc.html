@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Host KYC Verification - SmartPark{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-lg" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(20px);">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 52px; height: 52px; background: #0E5E6F;">
+                            <i class="bi bi-shield-check fs-3"></i>
+                        </div>
+                        <div>
+                            <h3 class="fw-bold mb-1 text-body">Host Identity Verification</h3>
+                            <p class="text-secondary small mb-0">Complete your KYC to list parking spaces and accept bookings</p>
+                        </div>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2 small mb-3">
+                            {% for err in form.non_field_errors %}
+                                <div><i class="bi bi-exclamation-circle me-1"></i> {{ err }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" action="{% url 'owner_kyc' %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Mobile Phone Number</label>
+                            {{ form.phone }}
+                            {% if form.phone.errors %}
+                                <div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-text small">Used for urgent driver and booking communications.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Aadhaar Identification Number (12 Digits)</label>
+                            {{ form.aadhaar_no }}
+                            {% if form.aadhaar_no.errors %}
+                                <div class="text-danger small mt-1">{{ form.aadhaar_no.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-text small">Required for property listing authenticity.</div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Owner / Manager Photo</label>
+                                {{ form.photo }}
+                                {% if form.photo.errors %}
+                                    <div class="text-danger small mt-1">{{ form.photo.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Property / Parking Image</label>
+                                {{ form.property_image }}
+                                {% if form.property_image.errors %}
+                                    <div class="text-danger small mt-1">{{ form.property_image.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded mb-4" style="background: rgba(14, 94, 111, 0.1); border-left: 4px solid #0E5E6F;">
+                            <div class="d-flex gap-2">
+                                <i class="bi bi-info-circle-fill text-primary"></i>
+                                <span class="small text-secondary">
+                                    Submitting this form completes your onboarding and enables Host privileges immediately.
+                                </span>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-brand w-100 py-3 fw-semibold">
+                            Verify & Activate Host Dashboard &rarr;
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

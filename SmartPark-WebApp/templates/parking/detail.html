@@ -1,0 +1,390 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ lot.name }} - Slot Reservation{% endblock %}
+
+{% block extra_head %}
+<style>
+    .parking-header-card {
+        background: linear-gradient(135deg, #0E5E6F 0%, #164E63 100%);
+        color: #ffffff;
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: var(--shadow-lg);
+        margin-bottom: 2rem;
+    }
+
+    .nav-pills-vehicle .nav-link {
+        color: var(--text-secondary);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: 12px;
+        padding: 8px 20px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .nav-pills-vehicle .nav-link.active {
+        background: #0E5E6F !important;
+        color: #ffffff !important;
+        border-color: #0E5E6F !important;
+    }
+
+    .slot-box {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid var(--border-default);
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        user-select: none;
+    }
+
+    .slot-available {
+        border-color: #0E5E6F !important;
+        background: rgba(14, 94, 111, 0.1) !important;
+        color: var(--text-primary);
+    }
+    .slot-available:hover {
+        transform: translateY(-3px);
+        background: rgba(14, 94, 111, 0.2) !important;
+        border-color: var(--brand-aqua) !important;
+    }
+
+    .slot-selected {
+        background: #0E5E6F !important;
+        color: #ffffff !important;
+        border-color: var(--brand-aqua) !important;
+        box-shadow: 0 0 12px rgba(46, 196, 182, 0.4);
+        transform: scale(1.05);
+    }
+
+    .slot-booked {
+        background: var(--bg-elevated) !important;
+        color: var(--text-muted) !important;
+        border-color: var(--border-subtle) !important;
+        cursor: not-allowed;
+        opacity: 0.45;
+        pointer-events: none;
+    }
+
+    .slot-watermark {
+        font-size: 0.55rem;
+        text-transform: uppercase;
+        opacity: 0.7;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+    .legend-box {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Facility Header -->
+    <div class="parking-header-card">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <span class="badge bg-light text-dark px-3 py-1 text-uppercase fw-bold mb-2">Verified Facility</span>
+                <h2 class="display-6 fw-bold mb-1">{{ lot.name }}</h2>
+                <p class="opacity-90 mb-3"><i class="bi bi-geo-alt-fill me-1"></i> {{ lot.address }}, {{ lot.city }} - {{ lot.pincode }}</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-dark bg-opacity-50 px-3 py-2"><i class="bi bi-clock me-1"></i> Open: {{ lot.opening_time }} - {{ lot.closing_time }}</span>
+                    <span class="badge bg-dark bg-opacity-50 px-3 py-2"><i class="bi bi-shield-check me-1"></i> Gate QR Pass</span>
+                    <span class="badge bg-dark bg-opacity-50 px-3 py-2"><i class="bi bi-grid-3x3 me-1"></i> Total Capacity: {{ lot.total_capacity }}</span>
+                </div>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <div class="p-3 rounded-4" style="background: rgba(0, 0, 0, 0.25);">
+                    <div class="small opacity-75 text-uppercase fw-semibold mb-1">Standard Rates</div>
+                    <div class="fw-bold fs-5">🚗 ₹{{ lot.car_price }}/hr &bull; 🏍️ ₹{{ lot.bike_price }}/hr</div>
+                    {% if lot.bus_price > 0 %}
+                        <div class="small opacity-75 mt-1">🚌 Bus: ₹{{ lot.bus_price }}/hr</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Layout -->
+    <div class="row g-4">
+        <!-- Left: Slot Parameters -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm p-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+                <h5 class="fw-bold mb-3 text-body"><i class="bi bi-calendar3 me-2 text-primary"></i>Timing & Window</h5>
+                
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">Reservation Date</label>
+                    <input type="date" class="form-control" id="bookingDate">
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Start Time</label>
+                        <input type="time" class="form-control" id="startTime" value="10:00">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Duration</label>
+                        <select class="form-select" id="bookingDuration">
+                            <option value="60" selected>1 Hour</option>
+                            <option value="120">2 Hours</option>
+                            <option value="180">3 Hours</option>
+                            <option value="240">4 Hours</option>
+                            <option value="480">8 Hours</option>
+                            <option value="720">12 Hours</option>
+                            <option value="1440">Full Day (24 hrs)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn btn-brand w-100 py-2 fw-semibold mb-4" id="checkAvailabilityBtn">
+                    Check Slot Availability
+                </button>
+
+                <!-- Selected Slot Summary -->
+                <div id="bookingSummary" class="d-none border-top pt-3" style="border-color: var(--border-default) !important;">
+                    <h6 class="fw-bold text-body mb-2">Selected Slots (<span id="selectedCount">0</span>)</h6>
+                    <div id="selectedSlotsList" class="mb-3"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-secondary fw-semibold">Total Amount:</span>
+                        <span class="fs-4 fw-bold text-primary" id="summaryPrice">₹0</span>
+                    </div>
+                    <button class="btn btn-success w-100 py-2 fw-semibold shadow-sm" id="confirmBookingBtn" disabled>
+                        Proceed to Checkout &rarr;
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Interactive Slot Grid -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm p-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                    <ul class="nav nav-pills nav-pills-vehicle gap-2">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="tab-car" onclick="filterSlots('car')">
+                                <i class="bi bi-car-front-fill me-1"></i> Cars ({{ lot.car_slots }})
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="tab-bike" onclick="filterSlots('bike')">
+                                <i class="bi bi-bicycle me-1"></i> Bikes ({{ lot.bike_slots }})
+                            </button>
+                        </li>
+                        {% if lot.bus_slots > 0 %}
+                        <li class="nav-item">
+                            <button class="nav-link" id="tab-bus" onclick="filterSlots('bus')">
+                                <i class="bi bi-bus-front-fill me-1"></i> Buses ({{ lot.bus_slots }})
+                            </button>
+                        </li>
+                        {% endif %}
+                    </ul>
+
+                    <!-- Legend -->
+                    <div class="d-flex gap-3">
+                        <div class="legend-item"><div class="legend-box" style="background: rgba(14, 94, 111, 0.2); border: 1px solid #0E5E6F;"></div> Available</div>
+                        <div class="legend-item"><div class="legend-box" style="background: #0E5E6F;"></div> Selected</div>
+                        <div class="legend-item"><div class="legend-box" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); opacity: 0.5;"></div> Booked</div>
+                    </div>
+                </div>
+
+                <div id="gridLoading" class="d-none text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small text-muted mt-2">Checking real-time slot collisions...</div>
+                </div>
+
+                <!-- Interactive Slot Grid Container -->
+                <div id="slotGridContainer" class="d-flex flex-wrap justify-content-center gap-3 py-3" style="min-height: 200px;">
+                    <p class="text-muted text-center py-5">Select a date and click "Check Slot Availability" to view interactive spots.</p>
+                </div>
+
+                <div class="text-center mt-4 pt-3 border-top" style="border-color: var(--border-default) !important;">
+                    <span class="small fw-bold text-uppercase text-muted" style="letter-spacing: 2px;">
+                        <i class="bi bi-arrow-down-up me-1"></i> Facility Entrance / Security Gate
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const parkingId = {{ lot.id }};
+    const prices = {
+        car: {{ lot.car_price }},
+        bike: {{ lot.bike_price }},
+        bus: {{ lot.bus_price }}
+    };
+
+    let selectedSlots = [];
+    let currentFilter = 'car';
+    let allSlots = [];
+
+    // Initialize with today's date
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('bookingDate');
+    dateInput.value = today;
+    dateInput.min = today;
+
+    function getStartAndEndDateTime() {
+        const date = document.getElementById('bookingDate').value;
+        const time = document.getElementById('startTime').value;
+        const durationMins = parseInt(document.getElementById('bookingDuration').value);
+        if (!date || !time) return null;
+
+        const start = new Date(`${date}T${time}:00`);
+        const end = new Date(start.getTime() + durationMins * 60000);
+        return {
+            start_iso: start.toISOString(),
+            end_iso: end.toISOString(),
+            start_obj: start,
+            durationMins: durationMins
+        };
+    }
+
+    document.getElementById('checkAvailabilityBtn').addEventListener('click', loadSlots);
+
+    async function loadSlots() {
+        const dt = getStartAndEndDateTime();
+        if (!dt) {
+            showAlert('Timing Required', 'Please select a valid date and arrival time to view available parking slots.', 'info');
+            return;
+        }
+
+        const now = new Date();
+        if (dt.start_obj < now) {
+            showAlert('Past Time Selected', 'Slot reservations in the past are not permitted. Please select a current or future time.', 'warning');
+            return;
+        }
+
+        const container = document.getElementById('slotGridContainer');
+        const loader = document.getElementById('gridLoading');
+        loader.classList.remove('d-none');
+        container.innerHTML = '';
+
+        try {
+            const url = `{% url 'api_get_slots' lot.id %}?start_datetime=${encodeURIComponent(dt.start_iso)}&end_datetime=${encodeURIComponent(dt.end_iso)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            allSlots = data.slots || [];
+            filterSlots(currentFilter);
+        } catch (e) {
+            container.innerHTML = `<div class="text-danger py-4">Failed to load slots. Please check connection.</div>`;
+        } finally {
+            loader.classList.add('d-none');
+        }
+    }
+
+    window.filterSlots = function(type) {
+        currentFilter = type;
+        document.querySelectorAll('.nav-pills-vehicle .nav-link').forEach(el => el.classList.remove('active'));
+        const tabEl = document.getElementById('tab-' + type);
+        if (tabEl) tabEl.classList.add('active');
+
+        const container = document.getElementById('slotGridContainer');
+        const filtered = allSlots.filter(s => s.vehicle_type === type);
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<p class="text-muted py-5 text-center">No ${type} slots in this facility.</p>`;
+            return;
+        }
+
+        const dt = getStartAndEndDateTime();
+        const durationHours = dt ? dt.durationMins / 60 : 1;
+
+        container.innerHTML = filtered.map(slot => {
+            const isSelected = selectedSlots.some(s => s.id === slot.id);
+            const isBooked = slot.is_booked;
+            const statusClass = isBooked ? 'slot-booked' : (isSelected ? 'slot-selected' : 'slot-available');
+            const price = prices[slot.vehicle_type] * durationHours;
+            const clickAttr = isBooked ? '' : `onclick="toggleSlot(${slot.id}, '${slot.slot_number}', '${slot.vehicle_type}', ${price})"`;
+
+            return `
+                <div class="slot-box ${statusClass}" id="slot-${slot.id}" ${clickAttr} title="Slot ${slot.slot_number}">
+                    <div>${slot.slot_number}</div>
+                    <div class="slot-watermark">${isBooked ? 'BOOKED' : slot.vehicle_type}</div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    window.toggleSlot = function(id, number, type, price) {
+        const idx = selectedSlots.findIndex(s => s.id === id);
+        const el = document.getElementById('slot-' + id);
+
+        if (idx > -1) {
+            selectedSlots.splice(idx, 1);
+            if (el) {
+                el.classList.remove('slot-selected');
+                el.classList.add('slot-available');
+            }
+        } else {
+            selectedSlots.push({ id, number, type, price });
+            if (el) {
+                el.classList.add('slot-selected');
+                el.classList.remove('slot-available');
+            }
+        }
+        updateSummary();
+    };
+
+    function updateSummary() {
+        const summaryDiv = document.getElementById('bookingSummary');
+        const listDiv = document.getElementById('selectedSlotsList');
+        const countSpan = document.getElementById('selectedCount');
+        const priceSpan = document.getElementById('summaryPrice');
+        const confirmBtn = document.getElementById('confirmBookingBtn');
+
+        if (selectedSlots.length === 0) {
+            summaryDiv.classList.add('d-none');
+            confirmBtn.disabled = true;
+        } else {
+            summaryDiv.classList.remove('d-none');
+            countSpan.innerText = selectedSlots.length;
+            listDiv.innerHTML = selectedSlots.map(s => `
+                <div class="d-flex justify-content-between align-items-center p-2 mb-1 rounded small border" style="background: var(--bg-surface);">
+                    <div><strong>Slot ${s.number}</strong> <span class="text-uppercase text-muted">(${s.type})</span></div>
+                    <div class="fw-bold">₹${s.price.toFixed(2)}</div>
+                </div>
+            `).join('');
+
+            const total = selectedSlots.reduce((acc, curr) => acc + curr.price, 0);
+            priceSpan.innerText = '₹' + total.toFixed(2);
+            confirmBtn.disabled = false;
+        }
+    }
+
+    document.getElementById('confirmBookingBtn').addEventListener('click', function() {
+        const dt = getStartAndEndDateTime();
+        if (!dt || selectedSlots.length === 0) return;
+
+        const slotIds = selectedSlots.map(s => s.id).join(',');
+        const url = `{% url 'checkout' %}?lot_id=${parkingId}&slot_ids=${slotIds}&start_datetime=${encodeURIComponent(dt.start_iso)}&end_datetime=${encodeURIComponent(dt.end_iso)}`;
+        window.location.href = url;
+    });
+
+    // Auto-load slots on open
+    window.addEventListener('load', loadSlots);
+</script>
+{% endblock %}
+

@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create an Account - SmartPark{% endblock %}
+
+{% block extra_head %}
+<style>
+    .auth-wrapper {
+        display: flex;
+        min-height: calc(100vh - 80px);
+        background: var(--bg-base);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .auth-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+        z-index: 1;
+    }
+
+    @media (min-width: 992px) {
+        .auth-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    .auth-left {
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        padding: 4rem;
+        position: relative;
+    }
+
+    @media (min-width: 992px) {
+        .auth-left { display: flex; }
+    }
+
+    .auth-right {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        position: relative;
+    }
+
+    .auth-card {
+        width: 100%;
+        max-width: 480px;
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        padding: 2.5rem;
+        backdrop-filter: blur(20px);
+        box-shadow: var(--shadow-lg);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-grid">
+        <!-- Left Branding Panel -->
+        <div class="auth-left">
+            <div style="max-width: 480px;">
+                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 mb-4 rounded-pill border" style="background: var(--bg-surface); border-color: var(--border-default) !important;">
+                    <i class="bi bi-person-check-fill text-success"></i>
+                    <span class="small fw-semibold text-secondary">Join The Mobility Revolution</span>
+                </div>
+                <h1 class="display-5 fw-bold mb-3 text-body">
+                    Start reserving with <span style="color: var(--brand-aqua);">SmartPark.</span>
+                </h1>
+                <p class="lead text-secondary mb-4" style="font-size: 1.1rem;">
+                    Sign up as a parking seeker or as a host to list your spaces and monetize unused capacity.
+                </p>
+
+                <div class="d-flex flex-column gap-3 mt-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(14, 94, 111, 0.2); color: var(--brand-aqua);">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                        </div>
+                        <span class="text-body fw-medium">Instant confirmation with zero wait times</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(14, 94, 111, 0.2); color: var(--brand-aqua);">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <span class="text-body fw-medium">Protected payments & automated refunds</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(14, 94, 111, 0.2); color: var(--brand-aqua);">
+                            <i class="bi bi-phone-fill"></i>
+                        </div>
+                        <span class="text-body fw-medium">Paperless tickets with secure QR validation</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Form Panel -->
+        <div class="auth-right">
+            <div class="auth-card">
+                <div class="text-center mb-4">
+                    <img src="{% static 'images/favicon.png' %}" alt="Logo" style="width: 48px; height: 48px; margin-bottom: 12px;">
+                    <h3 class="fw-bold text-body mb-1">Create Account</h3>
+                    <p class="text-muted small">Choose your primary role and join SmartPark</p>
+                </div>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2 small mb-3">
+                        {% for err in form.non_field_errors %}
+                            <div><i class="bi bi-exclamation-circle me-1"></i> {{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- INT253 Unit IV: Form Handling with Data Validation -->
+                <form method="POST" action="{% url 'register' %}">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Username</label>
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                            <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Email Address</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">I want to register as</label>
+                        {{ form.role }}
+                        {% if form.role.errors %}
+                            <div class="text-danger small mt-1">{{ form.role.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Password</label>
+                            {{ form.password }}
+                            {% if form.password.errors %}
+                                <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Confirm Password</label>
+                            {{ form.confirm_password }}
+                            {% if form.confirm_password.errors %}
+                                <div class="text-danger small mt-1">{{ form.confirm_password.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold mb-3">
+                        Complete Registration &rarr;
+                    </button>
+
+                    <div class="text-center text-secondary small">
+                        Already have an account? 
+                        <a href="{% url 'login' %}" class="fw-semibold text-decoration-none" style="color: var(--brand-aqua);">
+                            Sign in here
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

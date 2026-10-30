@@ -1,0 +1,359 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Checkout & Reservation - SmartPark{% endblock %}
+
+{% block extra_head %}
+<!-- Razorpay Checkout Script -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<style>
+    .checkout-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 20px;
+        backdrop-filter: blur(20px);
+        box-shadow: var(--shadow-lg);
+    }
+    .payment-option-card {
+        border: 2px solid var(--border-default);
+        border-radius: 12px;
+        padding: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--bg-surface);
+    }
+    .payment-option-card:hover {
+        border-color: var(--brand-aqua);
+    }
+    .payment-option-card.active {
+        border-color: #0E5E6F;
+        background: rgba(14, 94, 111, 0.08);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="checkout-card overflow-hidden">
+                <div class="p-4 text-center border-bottom" style="background: var(--bg-elevated); border-color: var(--border-default) !important;">
+                    <h3 class="fw-bold mb-1 text-body">Booking & Checkout</h3>
+                    <p class="text-secondary small mb-0">Confirm reservation details and complete payment</p>
+                </div>
+
+                <div class="p-4 p-md-5">
+                    <!-- Facility & Slot Details -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold text-uppercase text-secondary small mb-3">Facility & Timing</h6>
+                        <div class="p-3 rounded-3 border mb-3" style="background: var(--bg-surface);">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h5 class="fw-bold mb-1 text-body">{{ lot.name }}</h5>
+                                    <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i> {{ lot.address }}, {{ lot.city }}</p>
+                                </div>
+                                <span class="badge bg-primary px-3 py-2 text-uppercase">Active Lot</span>
+                            </div>
+                            <div class="row g-2 pt-2 border-top mt-2 small text-secondary" style="border-color: var(--border-subtle) !important;">
+                                <div class="col-sm-6">
+                                    <i class="bi bi-calendar-event me-1"></i> Window: <strong id="displayWindow">Loading...</strong>
+                                </div>
+                                <div class="col-sm-6 text-sm-end">
+                                    <i class="bi bi-hourglass-split me-1"></i> Duration: <strong id="displayDuration">--</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Slots List -->
+                        <div id="slotsBreakdownContainer" class="mb-3"></div>
+
+                        <div class="d-flex justify-content-between align-items-center p-3 rounded-3 border" style="background: var(--bg-elevated);">
+                            <span class="fw-bold text-body">Total Amount Due</span>
+                            <span class="fs-4 fw-bold text-success" id="checkoutTotalPrice">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Customer Information Form -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold text-uppercase text-secondary small mb-3">Driver Information</h6>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Full Name</label>
+                            <input type="text" id="driverName" class="form-control" value="{{ user.get_full_name|default:user.username }}">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Email Address</label>
+                                <input type="email" id="driverEmail" class="form-control" value="{{ user.email }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Mobile Phone <span class="text-danger">*</span></label>
+                                <input type="tel" id="driverPhone" class="form-control" placeholder="10-digit number" value="{{ user.phone|default:'' }}" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Vehicle Registration Number <span class="text-danger">*</span></label>
+                            <input type="text" id="driverVehicle" class="form-control text-uppercase" placeholder="e.g. DL01AB1234" required>
+                            <div class="form-text small">Required for security gate verification.</div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Method Selection -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold text-uppercase text-secondary small mb-3">Payment Option</h6>
+                        <div class="d-flex flex-column gap-2">
+                            <label class="payment-option-card active d-flex align-items-center justify-content-between" id="optOnline">
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="radio" name="paymentType" value="razorpay" checked class="form-check-input mt-0">
+                                    <div>
+                                        <div class="fw-bold text-body">Online Payment (UPI, Cards, NetBanking)</div>
+                                        <div class="small text-muted">Instant confirmation via Razorpay Gateway</div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-shield-check fs-4 text-success"></i>
+                            </label>
+
+                            <label class="payment-option-card d-flex align-items-center justify-content-between" id="optCash">
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="radio" name="paymentType" value="manual_qr" class="form-check-input mt-0">
+                                    <div>
+                                        <div class="fw-bold text-body">Pay on Arrival / UPI QR at Gate</div>
+                                        <div class="small text-muted">Reservation held pending gate check-in</div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-qr-code-scan fs-4 text-primary"></i>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Pay / Confirm Button -->
+                    <button class="btn btn-brand w-100 py-3 fw-bold fs-5 shadow" id="btnPayConfirm">
+                        <i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot
+                    </button>
+                    <p class="text-center text-muted small mt-2">
+                        <i class="bi bi-shield-lock text-success me-1"></i> 256-bit SSL encrypted reservation transaction
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const lotId = '{{ lot.id }}';
+    const slotIdsStr = urlParams.get('slot_ids') || '{{ slot_ids }}';
+    const startIso = urlParams.get('start_datetime') || '{{ start_datetime }}';
+    const endIso = urlParams.get('end_datetime') || '{{ end_datetime }}';
+
+    let slotIds = slotIdsStr ? slotIdsStr.split(',').filter(Boolean) : [];
+    let calculatedTotal = 0;
+
+    const startObj = new Date(startIso);
+    const endObj = new Date(endIso);
+    const durationMinutes = Math.max(15, Math.round((endObj - startObj) / 60000));
+    const durationHours = durationMinutes / 60;
+
+    document.getElementById('displayWindow').innerText = `${startObj.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${startObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${endObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    document.getElementById('displayDuration').innerText = `${durationMinutes} minutes`;
+
+    // Fetch slot info to display breakdown
+    async function loadBreakdown() {
+        try {
+            const res = await fetch(`{% url 'api_get_slots' lot.id %}?start_datetime=${encodeURIComponent(startIso)}&end_datetime=${encodeURIComponent(endIso)}`);
+            const data = await res.json();
+            const slots = data.slots || [];
+
+            const selected = slots.filter(s => slotIds.includes(String(s.id)));
+            const container = document.getElementById('slotsBreakdownContainer');
+
+            const prices = {
+                car: {{ lot.car_price }},
+                bike: {{ lot.bike_price }},
+                bus: {{ lot.bus_price }}
+            };
+
+            calculatedTotal = 0;
+            container.innerHTML = selected.map(s => {
+                const p = prices[s.vehicle_type] * durationHours;
+                calculatedTotal += p;
+                return `
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded border small" style="background: var(--bg-surface);">
+                        <div><strong>Slot ${s.slot_number}</strong> <span class="badge bg-secondary text-uppercase ms-1">${s.vehicle_type}</span></div>
+                        <div class="fw-bold text-body">₹${p.toFixed(2)}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('checkoutTotalPrice').innerText = '₹' + calculatedTotal.toFixed(2);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    loadBreakdown();
+
+    // Toggle styling on payment options
+    document.querySelectorAll('input[name="paymentType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.querySelectorAll('.payment-option-card').forEach(c => c.classList.remove('active'));
+            this.closest('.payment-option-card').classList.add('active');
+        });
+    });
+
+    // Pay & Confirm button handler
+    document.getElementById('btnPayConfirm').addEventListener('click', async function() {
+        const btn = this;
+        const phone = document.getElementById('driverPhone').value.trim();
+        const vehicle = document.getElementById('driverVehicle').value.trim();
+        const name = document.getElementById('driverName').value.trim();
+        const email = document.getElementById('driverEmail').value.trim();
+
+        if (!phone || !vehicle) {
+            showAlert('Missing Information', 'Please enter your mobile phone number and vehicle registration number to proceed with booking.', 'warning');
+            return;
+        }
+
+        const method = document.querySelector('input[name="paymentType"]:checked').value;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing Reservation...';
+
+        try {
+            if (method === 'razorpay') {
+                // 1. Create order on backend
+                const orderRes = await fetch('{% url "api_create_order" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: JSON.stringify({
+                        parking_lot_id: lotId,
+                        slot_ids: slotIds,
+                        amount: calculatedTotal,
+                        start_datetime: startIso,
+                        end_datetime: endIso
+                    })
+                });
+
+                const orderData = await orderRes.json();
+                if (!orderRes.ok || !orderData.success) {
+                    throw new Error(orderData.message || 'Failed to create payment order.');
+                }
+
+                // If mock order (local dev without live keys), bypass Razorpay modal
+                if (orderData.order_id.startsWith('order_mock_')) {
+                    await finalizeBooking({
+                        parking_lot_id: lotId,
+                        slot_ids: slotIds,
+                        start_datetime: startIso,
+                        end_datetime: endIso,
+                        customer_name: name,
+                        customer_phone: phone,
+                        vehicle_number: vehicle,
+                        email: email,
+                        payment_method: 'razorpay',
+                        razorpay_order_id: orderData.order_id,
+                        razorpay_payment_id: 'pay_mock_' + Date.now(),
+                        razorpay_signature: 'sig_mock_auto'
+                    });
+                    return;
+                }
+
+                // 2. Open Razorpay Checkout modal
+                const options = {
+                    key: orderData.key,
+                    amount: orderData.amount,
+                    currency: orderData.currency,
+                    name: 'SmartPark Mobility',
+                    description: 'Parking Space Reservation',
+                    image: '{% static "images/favicon.png" %}',
+                    order_id: orderData.order_id,
+                    handler: async function (response) {
+                        await finalizeBooking({
+                            parking_lot_id: lotId,
+                            slot_ids: slotIds,
+                            start_datetime: startIso,
+                            end_datetime: endIso,
+                            customer_name: name,
+                            customer_phone: phone,
+                            vehicle_number: vehicle,
+                            email: email,
+                            payment_method: 'razorpay',
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        });
+                    },
+                    prefill: {
+                        name: name,
+                        email: email,
+                        contact: phone
+                    },
+                    theme: {
+                        color: '#0E5E6F'
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot';
+            } else {
+                // Manual QR / Cash on arrival
+                await finalizeBooking({
+                    parking_lot_id: lotId,
+                    slot_ids: slotIds,
+                    start_datetime: startIso,
+                    end_datetime: endIso,
+                    customer_name: name,
+                    customer_phone: phone,
+                    vehicle_number: vehicle,
+                    email: email,
+                    payment_method: 'manual_qr'
+                });
+            }
+        } catch (err) {
+            showAlert('Reservation Failed', err.message || 'Error processing reservation.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot';
+        }
+    });
+
+    async function finalizeBooking(payload) {
+        const res = await fetch('{% url "api_create_booking" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.message || 'Booking confirmation failed.');
+        }
+
+        showAlert('Reservation Confirmed!', 'Your parking spot is secured! Click below to view your digital QR ticket and manage your reservation.', 'success', () => {
+            window.location.href = '{% url "dashboard" %}';
+        });
+    }
+</script>
+{% endblock %}
+

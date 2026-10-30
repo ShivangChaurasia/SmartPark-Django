@@ -1,0 +1,607 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}User Dashboard - SmartPark{% endblock %}
+
+{% block extra_head %}
+<style>
+    .dashboard-header {
+        padding: 3rem 0 4rem;
+        background: radial-gradient(circle at 10% 20%, rgba(14, 94, 111, 0.08) 0%, transparent 60%);
+        border-bottom: 1px solid var(--border-default);
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.25rem;
+        margin-top: -2.5rem;
+    }
+
+    .stat-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        padding: 1.5rem;
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .booking-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        padding: 1.5rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+    .booking-card:hover {
+        border-color: var(--brand-aqua);
+        box-shadow: var(--shadow-md);
+    }
+
+    .live-pulse {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background-color: #10B981;
+        border-radius: 50%;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulseRing 1.8s infinite;
+    }
+
+    @keyframes pulseRing {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <span class="badge bg-secondary mb-2 text-uppercase fw-bold">Active User Console</span>
+                <h1 class="display-6 fw-bold mb-1 text-body">
+                    Welcome back, {{ user.first_name|default:user.username }}!
+                </h1>
+                <p class="text-secondary mb-0">
+                    {% if stats.active_sessions > 0 %}
+                        You currently have <strong class="text-success">{{ stats.active_sessions }} active</strong> parking session(s) running.
+                    {% else %}
+                        No active parking sessions right now. Plan your next trip below.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <a href="{% url 'search' %}" class="btn btn-brand px-4 py-2">
+                    <i class="bi bi-geo-alt me-1"></i> Find Parking Spot
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <!-- Quick Statistics Bar -->
+    <div class="stat-grid mb-5">
+        <div class="stat-card">
+            <div class="display-6 fw-bold text-primary mb-1">{{ stats.active_sessions }}</div>
+            <div class="small fw-semibold text-secondary text-uppercase">Active Sessions</div>
+        </div>
+        <div class="stat-card">
+            <div class="display-6 fw-bold text-primary mb-1">{{ stats.total_bookings }}</div>
+            <div class="small fw-semibold text-secondary text-uppercase">Total Bookings</div>
+        </div>
+        <div class="stat-card">
+            <div class="display-6 fw-bold text-primary mb-1">₹{{ stats.total_spent|floatformat:0 }}</div>
+            <div class="small fw-semibold text-secondary text-uppercase">Total Spent</div>
+        </div>
+        <div class="stat-card">
+            <div class="display-6 fw-bold text-success mb-1">₹{{ stats.total_refunds|floatformat:0 }}</div>
+            <div class="small fw-semibold text-secondary text-uppercase">Total Refunds</div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 gap-2 border-bottom pb-3" id="dashTabs" role="tablist" style="border-color: var(--border-default) !important;">
+        <li class="nav-item">
+            <button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-active">
+                Active ({{ categorized.active|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-upcoming">
+                Upcoming ({{ categorized.upcoming|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-completed">
+                Completed ({{ categorized.completed|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-cancelled">
+                Cancelled ({{ categorized.cancelled|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-ledger">
+                <i class="bi bi-receipt me-1"></i> Ledger
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- 1. Active Tab -->
+        <div class="tab-pane fade show active" id="tab-active">
+            {% if categorized.active %}
+                <div class="row g-4">
+                    {% for b in categorized.active %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="booking-card">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="fw-bold mb-1 text-body text-truncate" style="max-width: 200px;">{{ b.parking_lot.name }}</h5>
+                                        <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ b.parking_lot.city }}</p>
+                                    </div>
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-3 py-1 rounded-pill small">
+                                        <span class="live-pulse me-1"></span> Live Session
+                                    </span>
+                                </div>
+
+                                <div class="p-3 rounded-3 mb-3 border d-flex align-items-center justify-content-between" style="background: var(--bg-surface);">
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-bold">{{ b.vehicle_type }} Slot</div>
+                                        <h4 class="fw-bold mb-0 text-primary">Slot {{ b.slot.slot_number }}</h4>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="small text-muted text-uppercase fw-bold">Ends In</div>
+                                        <div class="fw-bold text-danger live-countdown" data-end="{{ b.booking_end_datetime|date:'c' }}">--:--</div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-3 small text-secondary">
+                                    <div class="col-6 p-2 rounded border text-center" style="background: var(--bg-surface);">
+                                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Booking Date</div>
+                                        <strong>{{ b.date|date:"d M Y" }}</strong>
+                                    </div>
+                                    <div class="col-6 p-2 rounded border text-center" style="background: var(--bg-surface);">
+                                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Window</div>
+                                        <strong>{{ b.time_slot_id }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto pt-3 border-top d-flex gap-2" style="border-color: var(--border-subtle) !important;">
+                                    <button class="btn btn-outline-primary btn-sm flex-grow-1" onclick="openExtendModal('{{ b.id }}', '{{ b.slot.slot_number }}', '{{ b.parking_lot.name }}')">
+                                        <i class="bi bi-clock-history me-1"></i> Extend
+                                    </button>
+                                    <a href="{% url 'invoice_view' b.id %}" target="_blank" class="btn btn-brand btn-sm flex-grow-1">
+                                        <i class="bi bi-qr-code me-1"></i> E-Ticket
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-car-front fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Active Parking Sessions</h5>
+                    <p class="text-secondary small">You do not have any vehicle checked into a lot currently.</p>
+                    <a href="{% url 'search' %}" class="btn btn-brand btn-sm px-4">Find & Book Spot</a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- 2. Upcoming Tab -->
+        <div class="tab-pane fade" id="tab-upcoming">
+            {% if categorized.upcoming %}
+                <div class="row g-4">
+                    {% for b in categorized.upcoming %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="booking-card">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="fw-bold mb-1 text-body text-truncate" style="max-width: 200px;">{{ b.parking_lot.name }}</h5>
+                                        <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ b.parking_lot.city }}</p>
+                                    </div>
+                                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25 px-3 py-1 rounded-pill small">
+                                        Upcoming
+                                    </span>
+                                </div>
+
+                                <div class="p-3 rounded-3 mb-3 border d-flex align-items-center justify-content-between" style="background: var(--bg-surface);">
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-bold">{{ b.vehicle_type }} Slot</div>
+                                        <h4 class="fw-bold mb-0 text-primary">Slot {{ b.slot.slot_number }}</h4>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="small text-muted text-uppercase fw-bold">Starts In</div>
+                                        <div class="fw-bold text-success upcoming-countdown" data-start="{{ b.booking_start_datetime|date:'c' }}">--:--</div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-3 small text-secondary">
+                                    <div class="col-6 p-2 rounded border text-center" style="background: var(--bg-surface);">
+                                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Booking Date</div>
+                                        <strong>{{ b.date|date:"d M Y" }}</strong>
+                                    </div>
+                                    <div class="col-6 p-2 rounded border text-center" style="background: var(--bg-surface);">
+                                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Window</div>
+                                        <strong>{{ b.time_slot_id }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto pt-3 border-top d-flex gap-2" style="border-color: var(--border-subtle) !important;">
+                                    <button class="btn btn-outline-danger btn-sm flex-grow-1" onclick="openCancelModal('{{ b.id }}', '{{ b.slot.slot_number }}', '{{ b.price }}', '{{ b.booking_start_datetime|date:'c' }}')">
+                                        <i class="bi bi-x-circle me-1"></i> Cancel
+                                    </button>
+                                    <a href="{% url 'invoice_view' b.id %}" target="_blank" class="btn btn-brand btn-sm flex-grow-1">
+                                        <i class="bi bi-ticket-perforated me-1"></i> Ticket Pass
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-check fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Upcoming Reservations</h5>
+                    <p class="text-secondary small">Reserve a spot ahead of your next trip.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- 3. Completed Tab -->
+        <div class="tab-pane fade" id="tab-completed">
+            {% if categorized.completed %}
+                <div class="row g-4">
+                    {% for b in categorized.completed %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="booking-card">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="fw-bold mb-1 text-body text-truncate" style="max-width: 200px;">{{ b.parking_lot.name }}</h5>
+                                        <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ b.parking_lot.city }}</p>
+                                    </div>
+                                    <span class="badge bg-secondary px-3 py-1 rounded-pill small">
+                                        Completed
+                                    </span>
+                                </div>
+
+                                <div class="p-3 rounded-3 mb-3 border d-flex align-items-center justify-content-between" style="background: var(--bg-surface);">
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-bold">{{ b.vehicle_type }} Slot</div>
+                                        <h5 class="fw-bold mb-0 text-body">Slot {{ b.slot.slot_number }}</h5>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="small text-muted text-uppercase fw-bold">Amount Paid</div>
+                                        <div class="fw-bold text-body">₹{{ b.price }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto pt-3 border-top d-flex gap-2" style="border-color: var(--border-subtle) !important;">
+                                    <a href="{% url 'parking_detail' b.parking_lot.id %}" class="btn btn-outline-secondary btn-sm flex-grow-1">
+                                        <i class="bi bi-arrow-repeat me-1"></i> Book Again
+                                    </a>
+                                    <a href="{% url 'invoice_download' b.id %}" class="btn btn-brand btn-sm flex-grow-1">
+                                        <i class="bi bi-download me-1"></i> Receipt
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-clock-history fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Completed Bookings</h5>
+                    <p class="text-secondary small">Completed parking sessions will be stored here.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- 4. Cancelled Tab -->
+        <div class="tab-pane fade" id="tab-cancelled">
+            {% if categorized.cancelled %}
+                <div class="row g-4">
+                    {% for b in categorized.cancelled %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="booking-card border-danger border-opacity-25">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="fw-bold mb-1 text-body">{{ b.parking_lot.name }}</h5>
+                                        <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ b.parking_lot.city }}</p>
+                                    </div>
+                                    <span class="badge bg-danger px-3 py-1 rounded-pill small">
+                                        Cancelled
+                                    </span>
+                                </div>
+
+                                <div class="p-3 rounded-3 mb-3 border bg-danger bg-opacity-10 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <div class="small text-danger text-uppercase fw-bold">Refund Amount</div>
+                                        <h5 class="fw-bold mb-0 text-danger">₹{{ b.refund_amount }}</h5>
+                                    </div>
+                                    <span class="badge bg-danger text-uppercase">{{ b.refund_status }}</span>
+                                </div>
+
+                                <div class="small text-muted">
+                                    Cancelled on {{ b.cancelled_at|date:"d M Y, h:i A" }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-shield-check fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Cancelled Reservations</h5>
+                    <p class="text-secondary small">You haven't cancelled any parking bookings.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- 5. Ledger / Transactions Tab -->
+        <div class="tab-pane fade" id="tab-ledger">
+            {% if transactions %}
+                <div class="card border-0 shadow-sm overflow-hidden" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px;">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Method</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tx in transactions %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">{{ tx.created_at|date:"d M Y" }}</div>
+                                            <div class="small text-muted">{{ tx.created_at|date:"h:i A" }}</div>
+                                        </td>
+                                        <td>{{ tx.description }}</td>
+                                        <td><span class="badge bg-secondary text-uppercase">{{ tx.payment_method }}</span></td>
+                                        <td>
+                                            <span class="badge {% if tx.type == 'refund' %}bg-info{% else %}bg-primary{% endif %} text-uppercase">
+                                                {{ tx.type }}
+                                            </span>
+                                        </td>
+                                        <td class="fw-bold {% if tx.type == 'refund' %}text-success{% else %}text-body{% endif %}">
+                                            {% if tx.type == 'refund' %}+{% else %}-{% endif %}₹{{ tx.amount }}
+                                        </td>
+                                        <td>
+                                            <span class="badge {% if tx.status == 'completed' %}bg-success{% else %}bg-warning{% endif %}">
+                                                {{ tx.status|title }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-journal-text fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Transactions Recorded</h5>
+                    <p class="text-secondary small">Financial records will appear here as you make reservations.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Extend Booking Session -->
+<div class="modal fade" id="extendModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg" style="background: var(--bg-surface);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold text-body"><i class="bi bi-clock-history text-primary me-2"></i>Extend Reservation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-secondary small mb-3">
+                    Add additional time to your active reservation. Availability will be checked automatically.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">Extension Duration</label>
+                    <select class="form-select" id="extendDuration">
+                        <option value="15">15 Minutes</option>
+                        <option value="30" selected>30 Minutes</option>
+                        <option value="45">45 Minutes</option>
+                        <option value="60">1 Hour</option>
+                        <option value="120">2 Hours</option>
+                    </select>
+                </div>
+                <input type="hidden" id="extendBookingId">
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-brand btn-sm px-3" id="confirmExtendBtn">Confirm Extension</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cancel Reservation -->
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg" style="background: var(--bg-surface);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Cancel Booking</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-secondary small mb-3">
+                    Are you sure you want to cancel this reservation?
+                </p>
+                <div class="p-3 rounded mb-3 border bg-light">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Original Price:</span>
+                        <span class="fw-bold text-body" id="cancelOrigPrice">₹0</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted small">Estimated Refund:</span>
+                        <span class="fw-bold text-success" id="cancelRefundEst">₹0</span>
+                    </div>
+                    <div class="small text-muted mt-2" style="font-size: 0.75rem;">
+                        &bull; ≥ 2 hrs before start: 100% refund<br>
+                        &bull; 30m - 2 hrs before start: 50% refund<br>
+                        &bull; &lt; 30m before start: No refund
+                    </div>
+                </div>
+                <input type="hidden" id="cancelBookingId">
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Keep Booking</button>
+                <button type="button" class="btn btn-danger btn-sm px-3" id="confirmCancelBtn">Proceed with Cancellation</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // Live countdown update
+    function updateTimers() {
+        const now = new Date();
+        document.querySelectorAll('.live-countdown').forEach(el => {
+            const end = new Date(el.dataset.end);
+            const diff = end - now;
+            if (diff <= 0) {
+                el.innerText = 'Expired';
+            } else {
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                el.innerText = `${hours}h ${minutes}m ${seconds}s`;
+            }
+        });
+
+        document.querySelectorAll('.upcoming-countdown').forEach(el => {
+            const start = new Date(el.dataset.start);
+            const diff = start - now;
+            if (diff <= 0) {
+                el.innerText = 'Now';
+            } else {
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                el.innerText = `${hours}h ${minutes}m`;
+            }
+        });
+    }
+    setInterval(updateTimers, 1000);
+    updateTimers();
+
+    // Extend Modal
+    window.openExtendModal = function(id, slotNo, lotName) {
+        document.getElementById('extendBookingId').value = id;
+        new bootstrap.Modal(document.getElementById('extendModal')).show();
+    };
+
+    document.getElementById('confirmExtendBtn').addEventListener('click', async function() {
+        const id = document.getElementById('extendBookingId').value;
+        const mins = document.getElementById('extendDuration').value;
+        const btn = this;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/api/bookings/${id}/extend/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ additional_duration_minutes: parseInt(mins) })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Extension failed.');
+
+            showAlert('Session Extended', `Parking session extended until ${data.new_end_time}! Additional charge: ₹${data.cost}`, 'success', () => {
+                window.location.reload();
+            });
+        } catch (e) {
+            showAlert('Extension Failed', e.message || 'Unable to extend parking session.', 'error');
+            btn.disabled = false;
+        }
+    });
+
+    // Cancel Modal
+    window.openCancelModal = function(id, slotNo, price, startIso) {
+        document.getElementById('cancelBookingId').value = id;
+        document.getElementById('cancelOrigPrice').innerText = '₹' + price;
+
+        const now = new Date();
+        const start = new Date(startIso);
+        const mins = (start - now) / 60000;
+
+        let pct = 0;
+        if (mins >= 120) pct = 100;
+        else if (mins >= 30) pct = 50;
+
+        const refund = (parseFloat(price) * pct) / 100;
+        document.getElementById('cancelRefundEst').innerText = `₹${refund.toFixed(2)} (${pct}%)`;
+
+        new bootstrap.Modal(document.getElementById('cancelModal')).show();
+    };
+
+    document.getElementById('confirmCancelBtn').addEventListener('click', async function() {
+        const id = document.getElementById('cancelBookingId').value;
+        const btn = this;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/api/bookings/${id}/cancel/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Cancellation failed.');
+
+            showAlert('Reservation Cancelled', `Your reservation has been cancelled. Calculated refund amount: ₹${data.refund_amount}`, 'info', () => {
+                window.location.reload();
+            });
+        } catch (e) {
+            showAlert('Cancellation Error', e.message || 'Unable to cancel reservation.', 'error');
+            btn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}
+

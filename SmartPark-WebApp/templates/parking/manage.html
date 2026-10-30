@@ -1,0 +1,461 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Manage Facility - {{ parkingLot.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .slot-box {
+        width: 55px;
+        height: 55px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid var(--border-default);
+        background: var(--bg-surface);
+        color: var(--text-primary);
+    }
+    .slot-available {
+        border-color: #0E5E6F !important;
+        background: rgba(14, 94, 111, 0.1) !important;
+    }
+    .slot-booked {
+        background: var(--bg-elevated) !important;
+        color: var(--text-muted) !important;
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+    .slot-selected {
+        background: #0E5E6F !important;
+        color: #ffffff !important;
+        border-color: var(--brand-aqua) !important;
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Status Alerts -->
+    {% if parkingLot.status == 'scheduled_for_removal' %}
+        <div class="alert alert-warning d-flex align-items-center rounded-4 mb-4 shadow-sm" role="alert">
+            <i class="bi bi-calendar-x-fill fs-3 me-3 text-warning"></i>
+            <div>
+                <strong>Scheduled for Removal:</strong> This facility is scheduled to close on <strong>{{ parkingLot.scheduled_removal_date }}</strong>.
+                No new bookings are accepted beyond this date.
+                {% if parkingLot.removal_reason %}<div class="small text-muted">Reason: {{ parkingLot.removal_reason }}</div>{% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Header & Controls -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h2 class="fw-bold mb-1 text-body">{{ parkingLot.name }}</h2>
+            <p class="text-secondary small mb-0"><i class="bi bi-geo-alt"></i> {{ parkingLot.address }}, {{ parkingLot.city }} - {{ parkingLot.pincode }}</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <!-- Toggle Accepting Bookings Switch -->
+            <div class="form-check form-switch p-2 px-3 rounded border d-flex align-items-center gap-2" style="background: var(--bg-surface);">
+                <input class="form-check-input ms-0 mt-0" type="checkbox" id="acceptingSwitch" {% if parkingLot.is_accepting_bookings %}checked{% endif %}>
+                <label class="form-check-label small fw-semibold text-body" for="acceptingSwitch" id="acceptingLabel">
+                    {% if parkingLot.is_accepting_bookings %}Accepting Reservations{% else %}Reservations Paused{% endif %}
+                </label>
+            </div>
+
+            <!-- Settings Dropdown -->
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-gear me-1"></i> Actions
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border">
+                    <li>
+                        <button class="dropdown-item text-danger small py-2" onclick="openClosureModal()">
+                            <i class="bi bi-calendar-x me-2"></i> Schedule Safe Closure
+                        </button>
+                    </li>
+                    {% if parkingLot.status == 'scheduled_for_removal' %}
+                        <li>
+                            <button class="dropdown-item text-success small py-2" onclick="cancelClosure()">
+                                <i class="bi bi-arrow-counterclockwise me-2"></i> Cancel Closure
+                            </button>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+
+            <a href="{% url 'owner_dashboard' %}" class="btn btn-secondary btn-sm">
+                &larr; Host Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Grid & On-Spot Booking Row -->
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm p-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px;">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                    <h5 class="fw-bold mb-0 text-body">Live Slot Grid</h5>
+                    <div class="d-flex gap-2">
+                        <input type="date" id="manageDate" class="form-control form-control-sm">
+                        <input type="time" id="manageTime" class="form-control form-control-sm" value="10:00">
+                        <select id="manageDuration" class="form-select form-select-sm">
+                            <option value="60" selected>1 Hour</option>
+                            <option value="120">2 Hours</option>
+                            <option value="240">4 Hours</option>
+                        </select>
+                        <button class="btn btn-brand btn-sm" id="btnRefreshSlots">Check</button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <ul class="nav nav-pills gap-2 mb-3">
+                    <li class="nav-item">
+                        <button class="nav-link active btn-sm" id="tab-car" onclick="filterSlots('car')">Cars</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link btn-sm" id="tab-bike" onclick="filterSlots('bike')">Bikes</button>
+                    </li>
+                    {% if parkingLot.bus_slots > 0 %}
+                    <li class="nav-item">
+                        <button class="nav-link btn-sm" id="tab-bus" onclick="filterSlots('bus')">Buses</button>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <!-- Slots Container -->
+                <div id="slotGridContainer" class="d-flex flex-wrap gap-2 justify-content-center p-4 rounded-3 border" style="background: var(--bg-surface); min-height: 200px;">
+                    <div class="text-muted small py-4">Click "Check" to inspect slot availability.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: On-Spot Manual Booking Panel -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm p-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px;">
+                <h5 class="fw-bold text-body mb-3"><i class="bi bi-person-plus text-primary me-2"></i>On-Spot Walk-In Booking</h5>
+                <p class="text-secondary small mb-3">Book slots manually for drivers arriving directly at the facility.</p>
+
+                <div id="manualSlotNotice" class="alert alert-info py-2 small mb-3">
+                    Click an available slot on the left grid to select it.
+                </div>
+
+                <form id="manualBookingForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Selected Slot(s)</label>
+                        <input type="text" id="manualSelectedSlotsText" class="form-control" readonly placeholder="None selected">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Customer Name *</label>
+                        <input type="text" id="manualCustName" class="form-control" required placeholder="Driver Name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Phone Number *</label>
+                        <input type="tel" id="manualCustPhone" class="form-control" required placeholder="10-digit number">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Vehicle Number *</label>
+                        <input type="text" id="manualCustVehicle" class="form-control text-uppercase" required placeholder="e.g. DL01AB1234">
+                    </div>
+
+                    <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold" id="btnSubmitManual">
+                        Confirm Cash / On-Spot Booking
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Schedule Closure -->
+<div class="modal fade" id="closureModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg" style="background: var(--bg-surface);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-shield-exclamation me-2"></i>Safe Closure Verification</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-secondary small mb-3">
+                    To protect drivers with confirmed reservations, SmartPark calculates the earliest safe removal date based on existing bookings.
+                </p>
+
+                <div class="p-3 rounded border mb-3 small" style="background: var(--bg-elevated);">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Dependent Bookings:</span>
+                        <strong class="text-body" id="closureActiveCount">0</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Earliest Removal Date:</span>
+                        <strong class="text-danger" id="closureEarliestDate">--</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">Active Revenue Protected:</span>
+                        <strong class="text-success" id="closureRevImpact">₹0</strong>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">Reason for Closure (Optional)</label>
+                    <textarea class="form-control" id="closureReason" rows="2" placeholder="e.g. Renovation, lease expiration"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Keep Active</button>
+                <button type="button" class="btn btn-danger btn-sm px-3" id="btnConfirmClosure">Schedule Closure</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    const lotId = {{ parkingLot.id }};
+
+    // Initialize date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('manageDate').value = today;
+
+    let allSlots = [];
+    let currentFilter = 'car';
+    let manualSelectedSlotIds = [];
+
+    // Toggle accepting bookings switch
+    document.getElementById('acceptingSwitch').addEventListener('change', async function() {
+        const checked = this.checked;
+        const label = document.getElementById('acceptingLabel');
+        label.innerText = checked ? 'Accepting Reservations' : 'Reservations Paused';
+
+        try {
+            const res = await fetch(`{% url 'api_toggle_bookings' parkingLot.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ is_accepting_bookings: checked })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+        } catch (e) {
+            showAlert('Operation Failed', e.message, 'error');
+        }
+    });
+
+    // Refresh slots
+    document.getElementById('btnRefreshSlots').addEventListener('click', loadSlots);
+
+    async function loadSlots() {
+        const date = document.getElementById('manageDate').value;
+        const time = document.getElementById('manageTime').value;
+        const dur = parseInt(document.getElementById('manageDuration').value);
+
+        const start = new Date(`${date}T${time}:00`);
+        const end = new Date(start.getTime() + dur * 60000);
+
+        try {
+            const res = await fetch(`{% url 'api_get_slots' parkingLot.id %}?start_datetime=${encodeURIComponent(start.toISOString())}&end_datetime=${encodeURIComponent(end.toISOString())}`);
+            const data = await res.json();
+            allSlots = data.slots || [];
+            filterSlots(currentFilter);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.filterSlots = function(type) {
+        currentFilter = type;
+        document.querySelectorAll('#vehicleTabs .nav-link, .nav-pills .nav-link').forEach(el => el.classList.remove('active'));
+        const tabEl = document.getElementById('tab-' + type);
+        if (tabEl) tabEl.classList.add('active');
+
+        const container = document.getElementById('slotGridContainer');
+        const filtered = allSlots.filter(s => s.vehicle_type === type);
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<p class="text-muted py-4 text-center">No ${type} slots in this lot.</p>`;
+            return;
+        }
+
+        container.innerHTML = filtered.map(slot => {
+            const isSelected = manualSelectedSlotIds.includes(slot.id);
+            const isBooked = slot.is_booked;
+            const statusClass = isBooked ? 'slot-booked' : (isSelected ? 'slot-selected' : 'slot-available');
+            const clickAttr = isBooked ? '' : `onclick="toggleManualSlot(${slot.id}, '${slot.slot_number}')"`;
+
+            return `
+                <div class="slot-box ${statusClass}" id="mslot-${slot.id}" ${clickAttr} title="Slot ${slot.slot_number}">
+                    <div>${slot.slot_number}</div>
+                    <div style="font-size: 0.55rem; text-transform: uppercase;">${isBooked ? 'OCCUPIED' : slot.vehicle_type}</div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    window.toggleManualSlot = function(id, number) {
+        const idx = manualSelectedSlotIds.indexOf(id);
+        const el = document.getElementById('mslot-' + id);
+
+        if (idx > -1) {
+            manualSelectedSlotIds.splice(idx, 1);
+            if (el) {
+                el.classList.remove('slot-selected');
+                el.classList.add('slot-available');
+            }
+        } else {
+            manualSelectedSlotIds.push(id);
+            if (el) {
+                el.classList.add('slot-selected');
+                el.classList.remove('slot-available');
+            }
+        }
+
+        document.getElementById('manualSelectedSlotsText').value = manualSelectedSlotIds.length > 0
+            ? `${manualSelectedSlotIds.length} slot(s) selected`
+            : '';
+    };
+
+    // Manual on-spot booking form
+    document.getElementById('manualBookingForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (manualSelectedSlotIds.length === 0) {
+            showAlert('Selection Required', 'Please select at least one available slot on the grid to create a manual on-spot booking.', 'warning');
+            return;
+        }
+
+        const date = document.getElementById('manageDate').value;
+        const time = document.getElementById('manageTime').value;
+        const dur = parseInt(document.getElementById('manageDuration').value);
+        const start = new Date(`${date}T${time}:00`);
+        const end = new Date(start.getTime() + dur * 60000);
+
+        const btn = document.getElementById('btnSubmitManual');
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('{% url "api_store_manual_booking" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({
+                    parking_lot_id: lotId,
+                    slot_ids: manualSelectedSlotIds,
+                    customer_name: document.getElementById('manualCustName').value.trim(),
+                    customer_phone: document.getElementById('manualCustPhone').value.trim(),
+                    vehicle_number: document.getElementById('manualCustVehicle').value.trim(),
+                    start_datetime: start.toISOString(),
+                    end_datetime: end.toISOString()
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            showAlert('Booking Confirmed', 'Manual On-Spot Booking has been successfully recorded into the system!', 'success');
+            manualSelectedSlotIds = [];
+            document.getElementById('manualBookingForm').reset();
+            document.getElementById('manualSelectedSlotsText').value = '';
+            loadSlots();
+        } catch (err) {
+            showAlert('Booking Failed', err.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // Schedule Closure Modal
+    window.openClosureModal = async function() {
+        try {
+            const res = await fetch(`{% url 'api_get_closure_summary' parkingLot.id %}`);
+            const data = await res.json();
+
+            document.getElementById('closureActiveCount').innerText = data.active_bookings_count;
+            document.getElementById('closureEarliestDate').innerText = data.scheduled_removal_date;
+            document.getElementById('closureRevImpact').innerText = '₹' + data.revenue_impact;
+
+            new bootstrap.Modal(document.getElementById('closureModal')).show();
+        } catch (e) {
+            showAlert('Dependency Check Failed', 'Failed to calculate closure dependencies for this parking facility.', 'error');
+        }
+    };
+
+    document.getElementById('btnConfirmClosure').addEventListener('click', async function() {
+        const reason = document.getElementById('closureReason').value;
+        try {
+            const res = await fetch(`{% url 'api_schedule_closure' parkingLot.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ reason: reason })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            showAlert('Facility Closure Scheduled', 'Facility closure has been scheduled. Active reservations remain fully protected.', 'info', () => {
+                window.location.reload();
+            });
+        } catch (e) {
+            showAlert('Closure Error', e.message, 'error');
+        }
+    });
+
+    window.cancelClosure = function() {
+        showConfirm(
+            'Reactivate Facility',
+            'Are you sure you want to cancel the scheduled closure and reactivate this facility for new online bookings?',
+            async function() {
+                try {
+                    const res = await fetch(`{% url 'api_cancel_closure' parkingLot.id %}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrftoken
+                        }
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.message);
+
+                    showAlert('Facility Reactivated', data.message || 'Facility has been reopened successfully.', 'success', () => {
+                        window.location.reload();
+                    });
+                } catch (e) {
+                    showAlert('Error', e.message, 'error');
+                }
+            },
+            null,
+            'Yes, Reactivate',
+            'Keep Closed'
+        );
+    };
+
+    // Auto-load slots
+    window.addEventListener('load', loadSlots);
+</script>
+{% endblock %}
+

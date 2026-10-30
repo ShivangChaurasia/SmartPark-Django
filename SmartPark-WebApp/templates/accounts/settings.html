@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Account Settings - SmartPark{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1 text-body">Account Settings</h3>
+                    <p class="text-secondary small mb-0">Manage your profile, identity details, and preferences</p>
+                </div>
+                <div>
+                    <span class="badge {% if user.kyc_status == 'verified' %}bg-success{% else %}bg-warning{% endif %} px-3 py-2 text-uppercase">
+                        KYC: {{ user.get_kyc_status_display }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(20px);">
+                <div class="card-body p-4 p-md-5">
+                    <form method="POST" action="{% url 'settings' %}">
+                        {% csrf_token %}
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">First Name</label>
+                                {{ form.first_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Last Name</label>
+                                {{ form.last_name }}
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Email Address</label>
+                                {{ form.email }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Phone Number</label>
+                                {{ form.phone }}
+                            </div>
+                        </div>
+
+                        <div class="border-top pt-4 mb-4" style="border-color: var(--border-default) !important;">
+                            <h5 class="fw-semibold text-body mb-3">Account Security & Role</h5>
+                            <div class="d-flex flex-wrap gap-4 align-items-center justify-content-between p-3 rounded" style="background: var(--bg-surface);">
+                                <div>
+                                    <div class="fw-bold text-body">Current Role: <span class="text-capitalize text-primary">{{ user.role }}</span></div>
+                                    <div class="small text-muted">Username: {{ user.username }} &bull; Member since {{ user.date_joined|date:"M Y" }}</div>
+                                </div>
+                                <div>
+                                    <a href="{% url 'switch_role' %}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-arrow-left-right me-1"></i> Switch Role
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-brand px-4 py-2 fw-semibold">
+                            Save Changes
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

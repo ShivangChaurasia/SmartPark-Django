@@ -1,0 +1,516 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Host & Owner Dashboard - ParkEase{% endblock %}
+
+{% block extra_head %}
+<!-- Chart.js for Revenue Breakdown -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .host-header {
+        padding: 2.5rem 0 3rem;
+        background: radial-gradient(circle at 10% 20%, rgba(14, 94, 111, 0.08) 0%, transparent 60%);
+        border-bottom: 1px solid var(--border-default);
+    }
+    .stat-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        padding: 1.5rem;
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow-sm);
+    }
+    .lot-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        padding: 1.5rem;
+        transition: all 0.2s ease;
+    }
+    .lot-card:hover {
+        border-color: var(--brand-aqua);
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="host-header">
+    <div class="container">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <span class="badge bg-success px-3 py-1 text-uppercase fw-bold mb-2">Verified Host Console</span>
+                <h2 class="display-6 fw-bold mb-1 text-body">Host Control Center</h2>
+                <p class="text-secondary small mb-0">Manage parking inventory, verify gate tickets, and track earnings</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#newLotModal">
+                    <i class="bi bi-plus-circle me-1"></i> Add Parking Lot
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <!-- Analytics Counter Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+                <div class="small fw-semibold text-muted text-uppercase mb-1">Properties</div>
+                <div class="display-6 fw-bold text-primary">{{ totalParkingLots }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+                <div class="small fw-semibold text-muted text-uppercase mb-1">Total Capacity</div>
+                <div class="display-6 fw-bold text-primary">{{ totalSlots }} Slots</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+                <div class="small fw-semibold text-muted text-uppercase mb-1">Active Bookings</div>
+                <div class="display-6 fw-bold text-info">{{ activeBookingsCount }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card text-center">
+                <div class="small fw-semibold text-muted text-uppercase mb-1">Gross Earnings</div>
+                <div class="display-6 fw-bold text-success">₹{{ totalEarnings|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Analytics Chart (Chart.js) -->
+    <div class="card border-0 shadow-sm mb-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold mb-0 text-body"><i class="bi bi-graph-up text-primary me-2"></i>Weekly Revenue Breakdown</h5>
+                    <p class="text-secondary small mb-0">Real-time daily earnings overview</p>
+                </div>
+                <span class="badge bg-light text-dark border px-3 py-2">Past 7 Days</span>
+            </div>
+            <div style="height: 240px; position: relative;">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 gap-2 border-bottom pb-3" id="hostTabs" role="tablist" style="border-color: var(--border-default) !important;">
+        <li class="nav-item">
+            <button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-lots">
+                <i class="bi bi-building me-1"></i> Parking Facilities ({{ parkingLots|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-scanner">
+                <i class="bi bi-qr-code-scan me-1"></i> Gate Scanner & Verification
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-earnings">
+                <i class="bi bi-cash-stack me-1"></i> Earnings Ledger
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- 1. Properties Tab -->
+        <div class="tab-pane fade show active" id="tab-lots">
+            {% if parkingLots %}
+                <div class="row g-4">
+                    {% for lot in parkingLots %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="lot-card h-100 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="fw-bold mb-0 text-body">{{ lot.name }}</h5>
+                                    <span class="badge {% if lot.status == 'active' %}bg-success{% else %}bg-warning{% endif %} text-uppercase">
+                                        {{ lot.get_status_display }}
+                                    </span>
+                                </div>
+                                <p class="small text-muted mb-3"><i class="bi bi-geo-alt"></i> {{ lot.address }}, {{ lot.city }} - {{ lot.pincode }}</p>
+
+                                <div class="p-3 rounded mb-3 border small" style="background: var(--bg-surface);">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-secondary">Car Slots:</span>
+                                        <strong>{{ lot.car_slots }} &bull; ₹{{ lot.car_price }}/hr</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-secondary">Bike Slots:</span>
+                                        <strong>{{ lot.bike_slots }} &bull; ₹{{ lot.bike_price }}/hr</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-secondary">Accepting Bookings:</span>
+                                        <strong class="{% if lot.is_accepting_bookings %}text-success{% else %}text-danger{% endif %}">
+                                            {% if lot.is_accepting_bookings %}Yes{% else %}Paused{% endif %}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto d-flex gap-2">
+                                    <a href="{% url 'manage_lot' lot.id %}" class="btn btn-brand btn-sm flex-grow-1">
+                                        <i class="bi bi-sliders me-1"></i> Manage Facility
+                                    </a>
+                                    <a href="{% url 'parking_detail' lot.id %}" target="_blank" class="btn btn-outline-secondary btn-sm" title="Preview Public Page">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-building fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Facilities Registered Yet</h5>
+                    <p class="text-secondary small">Add your first parking facility to begin accepting driver reservations.</p>
+                    <button class="btn btn-brand btn-sm px-4" data-bs-toggle="modal" data-bs-target="#newLotModal">
+                        Register Facility Now
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- 2. Scanner & Gate Attendance Tab -->
+        <div class="tab-pane fade" id="tab-scanner">
+            <div class="row justify-content-center">
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm p-4 text-center" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px;">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 text-white" style="width: 56px; height: 56px; background: #0E5E6F;">
+                            <i class="bi bi-qr-code-scan fs-3"></i>
+                        </div>
+                        <h4 class="fw-bold text-body mb-1">Gate Pass Check-In</h4>
+                        <p class="text-secondary small mb-4">Enter the 10-character booking code from the customer's E-Ticket</p>
+
+                        <div class="input-group mb-3">
+                            <input type="text" id="verifyBookingIdInput" class="form-control text-uppercase text-center fw-bold fs-5" placeholder="e.g. PK9X2AB4Z1" maxlength="15">
+                            <button class="btn btn-brand px-4" id="btnVerifyBooking">Verify Ticket</button>
+                        </div>
+
+                        <!-- Verification Result Card -->
+                        <div id="verifyResultCard" class="d-none text-start p-4 rounded-3 border mt-3" style="background: var(--bg-surface);">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <span class="badge bg-success mb-1">Valid Ticket</span>
+                                    <h5 class="fw-bold mb-0 text-body" id="resCustName">Driver Name</h5>
+                                </div>
+                                <span class="badge bg-primary fs-6 px-3" id="resSlotNumber">Slot C-101</span>
+                            </div>
+
+                            <div class="row g-2 mb-3 small text-secondary">
+                                <div class="col-6">Vehicle: <strong class="text-body" id="resVehicle">DL01AB1234</strong></div>
+                                <div class="col-6">Type: <strong class="text-body text-uppercase" id="resType">Car</strong></div>
+                                <div class="col-6">Date: <strong class="text-body" id="resDate">--</strong></div>
+                                <div class="col-6">Time: <strong class="text-body" id="resTime">--</strong></div>
+                            </div>
+
+                            <button class="btn btn-success w-100 py-2 fw-semibold" id="btnMarkAttended">
+                                <i class="bi bi-check2-circle me-1"></i> Confirm Entry & Check In Vehicle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Earnings & Ledger Tab -->
+        <div class="tab-pane fade" id="tab-earnings">
+            {% if transactions %}
+                <div class="card border-0 shadow-sm overflow-hidden" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px;">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Method</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tx in transactions %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">{{ tx.created_at|date:"d M Y" }}</div>
+                                            <div class="small text-muted">{{ tx.created_at|date:"h:i A" }}</div>
+                                        </td>
+                                        <td>{{ tx.description }}</td>
+                                        <td><span class="badge bg-secondary text-uppercase">{{ tx.payment_method }}</span></td>
+                                        <td>
+                                            <span class="badge {% if tx.type == 'earning' %}bg-success{% else %}bg-info{% endif %} text-uppercase">
+                                                {{ tx.type }}
+                                            </span>
+                                        </td>
+                                        <td class="fw-bold text-success">+₹{{ tx.amount }}</td>
+                                        <td><span class="badge bg-success">{{ tx.status|title }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-cash-stack fs-1 text-muted d-block mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-body">No Earnings Yet</h5>
+                    <p class="text-secondary small">As drivers complete reservations at your facility, earnings will appear here.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add New Parking Lot -->
+<div class="modal fade" id="newLotModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg" style="background: var(--bg-surface);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold text-body"><i class="bi bi-building-add text-primary me-2"></i>Register New Parking Facility</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="newLotForm">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold text-secondary">Facility Name *</label>
+                            <input type="text" class="form-control" name="name" required placeholder="e.g. Cyber City Parking Plaza">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-secondary">PIN Code *</label>
+                            <input type="text" class="form-control" name="pincode" required placeholder="6-digit PIN">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold text-secondary">Street Address *</label>
+                            <input type="text" class="form-control" name="address" required placeholder="Full physical address">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-secondary">City *</label>
+                            <input type="text" class="form-control" name="city" required placeholder="City name">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Latitude *</label>
+                            <input type="number" step="any" class="form-control" name="latitude" required value="28.6139">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Longitude *</label>
+                            <input type="number" step="any" class="form-control" name="longitude" required value="77.2090">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-secondary">Car Slots (Hourly Rate)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="car_slots" value="10" min="0">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" name="car_price" value="50" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-secondary">Bike Slots (Hourly Rate)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="bike_slots" value="10" min="0">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" name="bike_price" value="20" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-secondary">Bus Slots (Hourly Rate)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="bus_slots" value="2" min="0">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" name="bus_price" value="100" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Opening Time</label>
+                            <input type="time" class="form-control" name="opening_time" value="06:00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Closing Time</label>
+                            <input type="time" class="form-control" name="closing_time" value="23:00">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold" id="btnSubmitLot">
+                        Create Facility & Generate Slots
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // 1. Chart.js Revenue Chart Initialization
+    const revenueLabels = JSON.parse('{{ revenue_labels_json|safe }}');
+    const revenueData = JSON.parse('{{ revenue_data_json|safe }}');
+
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: revenueLabels,
+            datasets: [{
+                label: 'Earnings (₹)',
+                data: revenueData,
+                backgroundColor: 'rgba(14, 94, 111, 0.15)',
+                borderColor: '#0E5E6F',
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.35,
+                pointBackgroundColor: '#2EC4B6',
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // 2. Add New Parking Lot Form Handler
+    document.getElementById('newLotForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitLot');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Creating Facility...';
+
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            const res = await fetch('{% url "api_store_parking_lot" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Creation failed.');
+
+            showAlert('Facility Created', 'Parking Facility and Slot Grid have been created successfully!', 'success', () => {
+                window.location.reload();
+            });
+        } catch (err) {
+            showAlert('Creation Error', err.message || 'Failed to create parking facility.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = 'Create Facility & Generate Slots';
+        }
+    });
+
+    // 3. Gate Verification
+    let verifiedBookingId = null;
+    document.getElementById('btnVerifyBooking').addEventListener('click', async function() {
+        const idInput = document.getElementById('verifyBookingIdInput').value.trim();
+        if (!idInput) return showAlert('Input Required', 'Please enter a booking code or reservation token to verify.', 'warning');
+
+        const btn = this;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('{% url "api_verify_booking" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ booking_id: idInput })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Verification failed.');
+
+            const b = data.booking;
+            verifiedBookingId = b.id;
+
+            document.getElementById('resCustName').innerText = b.customer_name;
+            document.getElementById('resSlotNumber').innerText = `Slot ${b.slot_number}`;
+            document.getElementById('resVehicle').innerText = b.vehicle_number;
+            document.getElementById('resType').innerText = b.vehicle_type;
+            document.getElementById('resDate').innerText = b.date;
+            document.getElementById('resTime').innerText = b.time_slot;
+
+            document.getElementById('verifyResultCard').classList.remove('d-none');
+        } catch (err) {
+            showAlert('Verification Failed', err.message || 'Booking ticket not found or already redeemed.', 'error');
+            document.getElementById('verifyResultCard').classList.add('d-none');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('btnMarkAttended').addEventListener('click', async function() {
+        if (!verifiedBookingId) return;
+        const btn = this;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('{% url "api_mark_attended" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ booking_id: verifiedBookingId })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Check-in failed.');
+
+            showAlert('Check-In Confirmed', 'Driver check-in successfully recorded! Entry gate access authorized.', 'success');
+            document.getElementById('verifyResultCard').classList.add('d-none');
+            document.getElementById('verifyBookingIdInput').value = '';
+        } catch (err) {
+            showAlert('Check-In Failed', err.message || 'Unable to complete check-in.', 'error');
+            btn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}
+

@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Intelligent Urban Parking Platform{% endblock %}
+
+{% block extra_head %}
+<!-- Lottie Player for Animations -->
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+<style>
+    .hero-section {
+        padding: 5rem 0 3rem;
+        background: radial-gradient(circle at top right, rgba(14, 94, 111, 0.08), transparent 40%),
+                    radial-gradient(circle at bottom left, rgba(46, 196, 182, 0.05), transparent 40%);
+    }
+
+    .trust-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 16px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: 30px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .trust-badge i {
+        color: var(--brand-aqua);
+    }
+
+    .search-block {
+        padding: 1.8rem;
+        max-width: 580px;
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: 16px;
+        backdrop-filter: blur(16px);
+    }
+
+    .stat-block {
+        text-align: center;
+        padding: 1.5rem;
+    }
+
+    .hero-lottie-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+        margin-top: -30px;
+    }
+
+    .app-section {
+        padding: 4.5rem 0;
+        border-top: 1px solid var(--border-subtle);
+    }
+
+    .app-section.alt-bg {
+        background: var(--bg-surface);
+    }
+
+    .app-screenshot-container {
+        border-radius: 16px;
+        padding: 12px;
+        background: linear-gradient(135deg, rgba(14, 94, 111, 0.2), rgba(46, 196, 182, 0.1));
+        box-shadow: var(--shadow-lg);
+        transition: transform 0.3s ease;
+    }
+    
+    .app-screenshot-container:hover {
+        transform: translateY(-4px);
+    }
+
+    .app-screenshot {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .section-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        background: var(--bg-elevated);
+        color: var(--brand-aqua);
+        border: 1px solid var(--border-default);
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 mb-5 mb-lg-0">
+                <div class="trust-badge">
+                    <i class="bi bi-shield-check"></i>
+                    Eco-Tech Smart Mobility Infrastructure
+                </div>
+                
+                <h1 class="display-4 fw-bold mb-4" style="color: var(--text-primary); letter-spacing: -0.02em;">
+                    Intelligent Urban<br>
+                    <span class="brand-park">Smart</span><span class="brand-ease" style="color: var(--brand-aqua);">Park.</span>
+                </h1>
+                <p class="lead mb-4 text-secondary" style="max-width: 520px;">
+                    Experience the future of seamless urban mobility with India's most advanced cost-effective parking management ecosystem powered by SmartPark.
+                </p>
+                
+                <div class="search-block shadow">
+                    {% if user.is_authenticated %}
+                        <div class="d-flex flex-column gap-2 mb-3 text-center">
+                            <h5 class="fw-bold text-body">Welcome back, {{ user.first_name|default:user.username }}!</h5>
+                            <p class="text-secondary small mb-2">Manage your sessions, track earnings, or discover a spot near you.</p>
+                            
+                            <a href="{% if user.role == 'host' %}{% url 'owner_dashboard' %}{% else %}{% url 'dashboard' %}{% endif %}" class="btn btn-brand w-100 py-2 fw-semibold">
+                                <i class="bi bi-grid-fill me-2"></i> Open Dashboard
+                            </a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 opacity-50 mb-3">
+                            <hr class="flex-grow-1">
+                            <span class="small fw-bold text-uppercase text-muted">OR SEARCH SPOTS</span>
+                            <hr class="flex-grow-1">
+                        </div>
+                    {% endif %}
+
+                    <form action="{% url 'search' %}" method="GET" id="searchForm">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Find a secure parking space</label>
+                            <div class="d-flex gap-2">
+                                <div class="position-relative flex-grow-1">
+                                    <i class="bi bi-geo-alt position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                                    <input type="text" class="form-control ps-5 py-2" name="pincode" placeholder="Enter Pincode (e.g. 110001)" id="pincodeInput">
+                                </div>
+                                <button class="btn btn-brand px-4" type="submit">Search</button>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex align-items-center gap-2 opacity-50 mb-3">
+                            <hr class="flex-grow-1">
+                            <span class="small fw-bold text-uppercase text-muted">OR</span>
+                            <hr class="flex-grow-1">
+                        </div>
+                        
+                        <button type="button" id="gpsBtn" class="btn btn-outline-secondary w-100 py-2 fw-medium">
+                            <i class="bi bi-cursor-fill text-primary me-2"></i>
+                            Use Current GPS Location
+                        </button>
+                        
+                        <input type="hidden" name="lat" id="latInput">
+                        <input type="hidden" name="lng" id="lngInput">
+                    </form>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 text-center">
+                <div class="hero-lottie-wrapper">
+                    <lottie-player 
+                        src="{% static 'Animations/Delivery Service-Delivery man.json' %}" 
+                        background="transparent" 
+                        speed="1" 
+                        style="width: 100%; max-width: 650px; height: 500px; margin: 0 auto;"
+                        loop 
+                        autoplay>
+                    </lottie-player>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section: For Parkers -->
+<div class="app-section">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-6 order-2 order-lg-1">
+                <div class="app-screenshot-container">
+                    <img src="{% static 'images/user_app_screenshot.png' %}" alt="User Parking App Interface" class="app-screenshot">
+                </div>
+            </div>
+            <div class="col-lg-5 offset-lg-1 order-1 order-lg-2">
+                <span class="section-badge">For Parkers</span>
+                <h2 class="display-6 fw-bold mb-3 text-body">Find & Book Instantly.</h2>
+                <p class="lead text-secondary mb-4" style="font-size: 1.1rem;">
+                    No more driving in circles. Our smart mobility engine gives you real-time visibility into available parking slots with instant booking confirmation.
+                </p>
+                <ul class="list-unstyled d-flex flex-column gap-3 mb-4">
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        <span class="text-body fw-medium">Live availability map & distance filtering</span>
+                    </li>
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        <span class="text-body fw-medium">UPI & Razorpay online transactions with QR tickets</span>
+                    </li>
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        <span class="text-body fw-medium">Automated cancellation with tiered refunds</span>
+                    </li>
+                </ul>
+                <a href="{% url 'search' %}" class="btn btn-brand px-4 py-2">
+                    <i class="bi bi-geo-fill me-2"></i> Explore Available Lots
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section: For Hosts -->
+<div class="app-section alt-bg">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-5">
+                <span class="section-badge">For Hosts</span>
+                <h2 class="display-6 fw-bold mb-3 text-body">Monetize Your Space.</h2>
+                <p class="lead text-secondary mb-4" style="font-size: 1.1rem;">
+                    Turn empty driveways, commercial plots, or unused spaces into recurring income with our host dashboard and gate validation system.
+                </p>
+                <ul class="list-unstyled d-flex flex-column gap-3 mb-4">
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-graph-up-arrow text-primary fs-5"></i>
+                        <span class="text-body fw-medium">Real-time revenue charts & transaction ledger</span>
+                    </li>
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-qr-code-scan text-primary fs-5"></i>
+                        <span class="text-body fw-medium">Gate QR scanner & attendance verification</span>
+                    </li>
+                    <li class="d-flex align-items-center gap-3">
+                        <i class="bi bi-shield-check text-primary fs-5"></i>
+                        <span class="text-body fw-medium">Safe closure protection for pending reservations</span>
+                    </li>
+                </ul>
+                {% if user.is_authenticated %}
+                    {% if user.kyc_status == 'verified' %}
+                        <a href="{% url 'owner_dashboard' %}" class="btn btn-brand px-4 py-2">Go to Host Dashboard</a>
+                    {% else %}
+                        <a href="{% url 'owner_kyc' %}" class="btn btn-brand px-4 py-2">Verify Host KYC</a>
+                    {% endif %}
+                {% else %}
+                    <a href="{% url 'register' %}" class="btn btn-brand px-4 py-2">Become a Host</a>
+                {% endif %}
+            </div>
+            <div class="col-lg-6 offset-lg-1">
+                <div class="app-screenshot-container">
+                    <img src="{% static 'images/host_app_screenshot.png' %}" alt="Host Dashboard Interface" class="app-screenshot">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Banner -->
+<div class="container py-5 my-3 border-top" style="border-color: var(--border-default) !important;">
+    <div class="row g-4 justify-content-center text-center">
+        <div class="col-6 col-md-3 stat-block">
+            <div class="display-6 fw-bold mb-1 text-primary">{{ total_locations|default:"500+" }}</div>
+            <div class="text-secondary small fw-semibold text-uppercase">Smart Hubs</div>
+        </div>
+        <div class="col-6 col-md-3 stat-block">
+            <div class="display-6 fw-bold mb-1 text-primary">{{ total_bookings|default:"12k+" }}</div>
+            <div class="text-secondary small fw-semibold text-uppercase">Reservations Completed</div>
+        </div>
+        <div class="col-6 col-md-3 stat-block">
+            <div class="display-6 fw-bold mb-1 text-primary">₹2M+</div>
+            <div class="text-secondary small fw-semibold text-uppercase">User Savings</div>
+        </div>
+        <div class="col-6 col-md-3 stat-block">
+            <div class="display-6 fw-bold mb-1 text-primary">4.9/5</div>
+            <div class="text-secondary small fw-semibold text-uppercase">Trust Rating</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function useIpFallback(btn) {
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Locating via IP...';
+        fetch('https://ipapi.co/json/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.latitude && data.longitude) {
+                    document.getElementById('latInput').value = data.latitude;
+                    document.getElementById('lngInput').value = data.longitude;
+                    document.getElementById('searchForm').submit();
+                } else {
+                    throw new Error("Location failed");
+                }
+            })
+            .catch(err => {
+                showAlert('Location Detection', 'Automatic location detection could not determine your coordinates. Please enter your PIN code or city above.', 'info');
+                btn.innerHTML = '<i class="bi bi-cursor-fill text-primary me-2"></i> Use Current GPS Location';
+            });
+    }
+
+    document.getElementById('gpsBtn').addEventListener('click', function() {
+        const btn = this;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Acquiring GPS...';
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                p => {
+                    document.getElementById('latInput').value = p.coords.latitude;
+                    document.getElementById('lngInput').value = p.coords.longitude;
+                    document.getElementById('searchForm').submit();
+                },
+                e => useIpFallback(btn),
+                { timeout: 8000 }
+            );
+        } else {
+            useIpFallback(btn);
+        }
+    });
+</script>
+{% endblock %}
+
