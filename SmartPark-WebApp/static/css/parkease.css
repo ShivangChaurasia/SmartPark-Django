@@ -361,3 +361,67 @@ p { color: var(--text-secondary); margin-bottom: var(--space-4); }
 
 /* Typography Gradient Overrides for brand vibrancy */
 .text-primary { color: var(--brand-aqua) !important; }
+
+/* Universal Bootstrap Theme Adaptations */
+.card, .card-header, .card-footer {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-default) !important;
+    color: var(--text-primary) !important;
+}
+
+.modal-content {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-default) !important;
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--border-subtle) !important;
+}
+
+.dropdown-menu {
+    background-color: var(--bg-elevated) !important;
+    border: 1px solid var(--border-default) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.dropdown-item {
+    color: var(--text-primary) !important;
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--bg-hover) !important;
+    color: var(--brand-aqua) !important;
+}
+
+.form-control, .form-select {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-default) !important;
+    color: var(--text-primary) !important;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--brand-aqua) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.25) !important;
+}
+
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--text-primary);
+    border-color: var(--border-default) !important;
+    color: var(--text-primary) !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.list-group-item {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-default) !important;
+    color: var(--text-primary) !important;
+}

@@ -9,7 +9,7 @@ SmartPark is a full-featured, smart mobility management and parking reservation 
 
 | Unit | Syllabus Topics | Implemented Django Components in SmartPark |
 | :--- | :--- | :--- |
-| **Unit I** | Django installation, project/app structure, `manage.py` commands | Modular app architecture (`accounts`, `parking`, `bookings`, `core`), custom management commands (`seed_demo_data`), unified project configuration in [`smartpark/settings.py`](file:///c:/Users/ACER/Desktop/Repos/SmartPark-Django/smartpark/settings.py) |
+| **Unit I** | Django installation, project/app structure, `manage.py` commands | Modular app architecture (`accounts`, `parking`, `bookings`, `core`), custom management commands (`seed_demo_data`), unified project configuration in [`smartpark/settings.py`](file:///c:/Users/ACER/Desktop/Repos/SmartPark-Django/SmartPark-WebApp/smartpark/settings.py) |
 | **Unit II** | Views, URL dispatcher, HTTP request/response methods, error handling | Dynamic URL routing (`urls.py`), parameterized endpoints (`<int:pk>`), GET/POST dispatch, JSON REST APIs (`JsonResponse`) |
 | **Unit III** | Templates (DTL), inheritance, variables, tags/filters, unit testing | Django templates with `{% extends 'base.html' %}`, `{% block %}`, `{% if %}`, `{% for %}`, `TestCase` in `tests.py` |
 | **Unit IV** | Forms, validation, CSRF security, Post/Redirect/Get pattern | Django Forms (`UserRegistrationForm`, `UserLoginForm`, `HostKYCForm`, `ParkingLotForm`, `ProfileUpdateForm`), `{% csrf_token %}` |
@@ -41,9 +41,10 @@ SmartPark is a full-featured, smart mobility management and parking reservation 
 
 ### 🛠️ Quick Start & Setup
 
-#### 1. Activate Environment & Install Dependencies
+#### 1. Navigate to Web App & Activate Environment
 ```bash
 # Windows
+cd SmartPark-WebApp
 .\venv\Scripts\activate
 pip install -r requirements.txt
 ```
