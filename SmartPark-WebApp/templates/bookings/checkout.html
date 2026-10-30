@@ -283,7 +283,7 @@
                     currency: orderData.currency,
                     name: 'SmartPark Mobility',
                     description: 'Parking Space Reservation',
-                    image: '{% static "images/favicon.png" %}',
+                    image: '{% static "images/favicon.png" %}?v=2',
                     order_id: orderData.order_id,
                     handler: async function (response) {
                         await finalizeBooking({

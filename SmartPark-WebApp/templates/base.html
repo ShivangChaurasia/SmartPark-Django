@@ -24,8 +24,12 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+    <!-- Favicons & App Icons -->
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-16x16.png' %}?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'images/favicon-180x180.png' %}?v=2">
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}?v=2">
 
     <!-- Premium Design System -->
     <link rel="stylesheet" href="{% static 'css/smartpark.css' %}">
@@ -208,7 +212,7 @@
         <div class="container">
             <div class="d-flex align-items-center">
                 <a class="navbar-brand me-4" href="{% url 'home' %}">
-                    <img src="{% static 'images/favicon.png' %}" alt="Logo" style="width: 44px; height: 44px; object-fit: contain;">
+                    <img src="{% static 'images/favicon.png' %}?v=2" alt="Logo" class="rounded-3 shadow-sm" style="width: 44px; height: 44px; object-fit: contain;">
                     <span class="brand-typewriter">
                         <span class="brand-park">Smart</span><span class="brand-ease">Park</span>
                     </span>
@@ -387,7 +391,7 @@
             <div class="row g-4 align-items-center">
                 <div class="col-md-6 text-center text-md-start">
                     <div class="d-flex align-items-center justify-content-center justify-content-md-start gap-2 mb-2">
-                        <img src="{% static 'images/favicon.png' %}" alt="Logo" style="width: 32px; height: 32px;">
+                        <img src="{% static 'images/favicon.png' %}?v=2" alt="Logo" class="rounded-2" style="width: 32px; height: 32px; object-fit: contain;">
                         <span class="fw-bold fs-5" style="color: var(--text-primary);">Smart<span style="color: var(--brand-aqua);">Park</span></span>
                     </div>
                     <p class="text-muted small mb-0">Cost-Effective & Smart Mobility Platform. Powered by Django & Python.</p>
