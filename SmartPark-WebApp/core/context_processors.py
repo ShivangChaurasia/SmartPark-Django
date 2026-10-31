@@ -1,9 +1,13 @@
+from django.conf import settings
+
+
 def smartpark_context(request):
     """
-    Context processor to inject global notification and role data into templates for SmartPark.
+    Context processor to inject global notification, role data, and map credentials into templates.
     """
     context = {
         'app_name': 'SmartPark',
+        'maptiler_key': getattr(settings, 'MAPTILER_KEY', 'fJTNOS3Y93wHYjRBcSIY'),
         'recent_notifications': [],
         'has_notifications': False,
         'current_role': 'user',

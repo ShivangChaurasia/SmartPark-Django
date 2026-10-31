@@ -38,8 +38,14 @@
         <div class="col-lg-7">
             <div class="checkout-card overflow-hidden">
                 <div class="p-4 text-center border-bottom" style="background: var(--bg-elevated); border-color: var(--border-default) !important;">
+                    {% if is_host_booking %}
+                    <span class="badge bg-primary px-3 py-1 text-uppercase mb-2"><i class="bi bi-person-badge me-1"></i> Host Booking Desk</span>
+                    <h3 class="fw-bold mb-1 text-body">Customer Slot Reservation</h3>
+                    <p class="text-secondary small mb-0">Record and secure parking for walk-in driver at <strong>{{ lot.name }}</strong></p>
+                    {% else %}
                     <h3 class="fw-bold mb-1 text-body">Booking & Checkout</h3>
                     <p class="text-secondary small mb-0">Confirm reservation details and complete payment</p>
+                    {% endif %}
                 </div>
 
                 <div class="p-4 p-md-5">
@@ -75,6 +81,28 @@
 
                     <!-- Customer Information Form -->
                     <div class="mb-4">
+                        {% if is_host_booking %}
+                        <h6 class="fw-bold text-uppercase text-secondary small mb-3"><i class="bi bi-person-fill me-1"></i> Walk-In Customer Information</h6>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Customer Full Name <span class="text-danger">*</span></label>
+                            <input type="text" id="driverName" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Customer Mobile Phone <span class="text-danger">*</span></label>
+                                <input type="tel" id="driverPhone" class="form-control" placeholder="10-digit number" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Customer Email <span class="text-muted small">(Optional, for digital ticket)</span></label>
+                                <input type="email" id="driverEmail" class="form-control" placeholder="customer@example.com">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Customer Vehicle Registration Number <span class="text-danger">*</span></label>
+                            <input type="text" id="driverVehicle" class="form-control text-uppercase" placeholder="e.g. DL01AB1234" required>
+                            <div class="form-text small">Printed on customer gate ticket and validated at entry.</div>
+                        </div>
+                        {% else %}
                         <h6 class="fw-bold text-uppercase text-secondary small mb-3">Driver Information</h6>
                         <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">Full Name</label>
@@ -95,10 +123,37 @@
                             <input type="text" id="driverVehicle" class="form-control text-uppercase" placeholder="e.g. DL01AB1234" required>
                             <div class="form-text small">Required for security gate verification.</div>
                         </div>
+                        {% endif %}
                     </div>
 
                     <!-- Payment Method Selection -->
                     <div class="mb-4">
+                        {% if is_host_booking %}
+                        <h6 class="fw-bold text-uppercase text-secondary small mb-3">Payment Collection Method</h6>
+                        <div class="d-flex flex-column gap-2">
+                            <label class="payment-option-card active d-flex align-items-center justify-content-between" id="optCash">
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="radio" name="paymentType" value="manual_qr" checked class="form-check-input mt-0">
+                                    <div>
+                                        <div class="fw-bold text-body">Cash / Counter Payment (Collected at Gate)</div>
+                                        <div class="small text-muted">Customer pays cash or direct UPI to desk; instantly marks spot paid</div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-cash-coin fs-4 text-success"></i>
+                            </label>
+
+                            <label class="payment-option-card d-flex align-items-center justify-content-between" id="optOnline">
+                                <div class="d-flex align-items-center gap-3">
+                                    <input type="radio" name="paymentType" value="razorpay" class="form-check-input mt-0">
+                                    <div>
+                                        <div class="fw-bold text-body">Customer Online Payment (UPI QR / Razorpay Gateway)</div>
+                                        <div class="small text-muted">Collect payment via Razorpay online payment link / QR</div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-qr-code-scan fs-4 text-primary"></i>
+                            </label>
+                        </div>
+                        {% else %}
                         <h6 class="fw-bold text-uppercase text-secondary small mb-3">Payment Option</h6>
                         <div class="d-flex flex-column gap-2">
                             <label class="payment-option-card active d-flex align-items-center justify-content-between" id="optOnline">
@@ -117,17 +172,35 @@
                                     <input type="radio" name="paymentType" value="manual_qr" class="form-check-input mt-0">
                                     <div>
                                         <div class="fw-bold text-body">Pay on Arrival / UPI QR at Gate</div>
-                                        <div class="small text-muted">Reservation held pending gate check-in</div>
+                                        <div class="small text-muted">
+                                            Reservation held pending gate check-in
+                                            &nbsp;&bull;&nbsp;
+                                            <span class="text-warning fw-semibold">Cancellable up to 1 hour before arrival only</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <i class="bi bi-qr-code-scan fs-4 text-primary"></i>
                             </label>
+
+                            {% if outstanding_penalty > 0 %}
+                            <div class="alert alert-danger border-danger border-opacity-50 rounded-3 p-3 mt-1 mb-0 small" style="background: rgba(220,38,38,0.07);">
+                                <i class="bi bi-exclamation-circle-fill text-danger me-1"></i>
+                                <strong>Outstanding No-Show Penalty: ₹{{ outstanding_penalty|floatformat:2 }}</strong><br>
+                                You have an unpaid charge from a previous Pay-at-Site booking where you did not arrive.
+                                Selecting <em>Pay on Arrival</em> will include this outstanding penalty in your payment collection at the gate.
+                            </div>
+                            {% endif %}
                         </div>
+                        {% endif %}
                     </div>
 
                     <!-- Pay / Confirm Button -->
                     <button class="btn btn-brand w-100 py-3 fw-bold fs-5 shadow" id="btnPayConfirm">
+                        {% if is_host_booking %}
+                        <i class="bi bi-check-circle-fill me-2"></i> Confirm Customer Reservation
+                        {% else %}
                         <i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot
+                        {% endif %}
                     </button>
                     <p class="text-center text-muted small mt-2">
                         <i class="bi bi-shield-lock text-success me-1"></i> 256-bit SSL encrypted reservation transaction
@@ -231,6 +304,7 @@
         }
 
         const method = document.querySelector('input[name="paymentType"]:checked').value;
+        const btnOriginalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing Reservation...';
 
@@ -258,7 +332,7 @@
                 }
 
                 // If mock order (local dev without live keys), bypass Razorpay modal
-                if (orderData.order_id.startsWith('order_mock_')) {
+                if (orderData.order_id && orderData.order_id.startsWith('order_mock_')) {
                     await finalizeBooking({
                         parking_lot_id: lotId,
                         slot_ids: slotIds,
@@ -284,7 +358,6 @@
                     name: 'SmartPark Mobility',
                     description: 'Parking Space Reservation',
                     image: '{% static "images/favicon.png" %}?v=2',
-                    order_id: orderData.order_id,
                     handler: async function (response) {
                         await finalizeBooking({
                             parking_lot_id: lotId,
@@ -296,9 +369,9 @@
                             vehicle_number: vehicle,
                             email: email,
                             payment_method: 'razorpay',
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature
+                            razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
+                            razorpay_payment_id: response.razorpay_payment_id || '',
+                            razorpay_signature: response.razorpay_signature || ''
                         });
                     },
                     prefill: {
@@ -310,10 +383,20 @@
                         color: '#0E5E6F'
                     }
                 };
+
+                if (orderData.order_id) {
+                    options.order_id = orderData.order_id;
+                }
+
                 const rzp = new Razorpay(options);
+                rzp.on('payment.failed', function (resp) {
+                    showAlert('Payment Incomplete', resp.error.description || 'Payment was not completed. Please try again.', 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = btnOriginalHtml;
+                });
                 rzp.open();
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot';
+                btn.innerHTML = btnOriginalHtml;
             } else {
                 // Manual QR / Cash on arrival
                 await finalizeBooking({
@@ -331,7 +414,7 @@
         } catch (err) {
             showAlert('Reservation Failed', err.message || 'Error processing reservation.', 'error');
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i> Confirm & Reserve Spot';
+            btn.innerHTML = btnOriginalHtml;
         }
     });
 
@@ -350,9 +433,16 @@
             throw new Error(data.message || 'Booking confirmation failed.');
         }
 
-        showAlert('Reservation Confirmed!', 'Your parking spot is secured! Click below to view your digital QR ticket and manage your reservation.', 'success', () => {
-            window.location.href = '{% url "dashboard" %}';
-        });
+        const isHostBooking = {{ is_host_booking|yesno:"true,false" }};
+        if (isHostBooking) {
+            showAlert('Customer Spot Secured!', 'Walk-in reservation confirmed! Slot has been registered and verified in your facility roster.', 'success', () => {
+                window.location.href = '{% url "manage_lot" lot.id %}';
+            });
+        } else {
+            showAlert('Reservation Confirmed!', 'Your parking spot is secured! Click below to view your digital QR ticket and manage your reservation.', 'success', () => {
+                window.location.href = '{% url "dashboard" %}';
+            });
+        }
     }
 </script>
 {% endblock %}

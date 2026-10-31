@@ -142,6 +142,56 @@ class Command(BaseCommand):
             generate_vehicle_slots(lot3, lot3.car_slots, lot3.bike_slots, lot3.bus_slots)
             self.stdout.write(f"Generated slots for {lot3.name}")
 
+        lot4, _ = ParkingLot.objects.get_or_create(
+            name='Administration Block Parking',
+            defaults={
+                'owner': host,
+                'address': 'Lovely Professional University, GT Road',
+                'city': 'Phagwara',
+                'pincode': '144411',
+                'latitude': 31.2536,
+                'longitude': 75.7037,
+                'car_price': 30.00,
+                'bike_price': 10.00,
+                'bus_price': 50.00,
+                'car_slots': 50,
+                'bike_slots': 30,
+                'bus_slots': 5,
+                'opening_time': '06:00',
+                'closing_time': '22:00',
+                'status': 'active',
+                'is_accepting_bookings': True
+            }
+        )
+        if lot4.slots.count() == 0:
+            generate_vehicle_slots(lot4, lot4.car_slots, lot4.bike_slots, lot4.bus_slots)
+            self.stdout.write(f"Generated slots for {lot4.name}")
+
+        lot5, _ = ParkingLot.objects.get_or_create(
+            name='Himanshu Shekhar Plaza',
+            defaults={
+                'owner': host,
+                'address': 'Ramandai, Near Bus Stand',
+                'city': 'Jalandhar',
+                'pincode': '144001',
+                'latitude': 31.3260,
+                'longitude': 75.5762,
+                'car_price': 20.00,
+                'bike_price': 10.00,
+                'bus_price': 40.00,
+                'car_slots': 20,
+                'bike_slots': 15,
+                'bus_slots': 0,
+                'opening_time': '07:00',
+                'closing_time': '23:00',
+                'status': 'active',
+                'is_accepting_bookings': True
+            }
+        )
+        if lot5.slots.count() == 0:
+            generate_vehicle_slots(lot5, lot5.car_slots, lot5.bike_slots, lot5.bus_slots)
+            self.stdout.write(f"Generated slots for {lot5.name}")
+
         # 5. Seed sample bookings for driver_demo
         slot_sample = lot1.slots.filter(vehicle_type='car').first()
         now = timezone.now()

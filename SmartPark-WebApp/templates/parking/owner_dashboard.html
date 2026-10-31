@@ -31,6 +31,50 @@
         border-color: var(--brand-aqua);
         transform: translateY(-2px);
     }
+
+    /* Custom Leaflet Map Pin */
+    .smart-marker-pin {
+        width: 32px;
+        height: 32px;
+        border-radius: 50% 50% 50% 0;
+        background: linear-gradient(135deg, #0E5E6F 0%, #2EC4B6 100%);
+        position: absolute;
+        transform: rotate(-45deg);
+        left: 50%;
+        top: 50%;
+        margin: -16px 0 0 -16px;
+        box-shadow: 0 4px 12px rgba(14, 94, 111, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #ffffff;
+    }
+    .smart-marker-icon {
+        transform: rotate(45deg);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 12px;
+    }
+
+    /* Fullscreen Map Mode in Registration Modal */
+    .map-fullscreen-overlay {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 1060 !important;
+        background: #0F172A !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .map-fullscreen-overlay #modalPickerMap {
+        height: 100vh !important;
+        width: 100vw !important;
+        border-radius: 0 !important;
+        border: none !important;
+    }
 </style>
 {% endblock %}
 
@@ -296,14 +340,76 @@
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Latitude *</label>
-                            <input type="number" step="any" class="form-control" name="latitude" required value="28.6139">
+                    <!-- 3-Way Geographic Location Coordinator -->
+                    <div class="card p-3 mb-3 border-0 rounded-3 shadow-sm" id="modalMapSection" style="background: var(--bg-surface); border: 1px solid var(--border-default) !important;">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+                            <div>
+                                <label class="form-label small fw-bold text-body mb-0">
+                                    <i class="bi bi-geo-alt-fill text-primary me-1"></i>Facility Location (3 Coordinated Options)
+                                </label>
+                                <div class="text-secondary small" style="font-size: 0.76rem;">Click map, detect live GPS, or edit coordinates directly</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill fw-semibold shadow-sm" id="btnDetectHostGPS" style="font-size: 0.78rem;">
+                                    <i class="bi bi-crosshair me-1"></i> Detect Current Location
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold shadow-sm" id="btnToggleFullscreenMap" style="font-size: 0.78rem;" title="Expand map to full screen">
+                                    <i class="bi bi-arrows-fullscreen me-1"></i> Fullscreen Map
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Longitude *</label>
-                            <input type="number" step="any" class="form-control" name="longitude" required value="77.2090">
+
+                        <!-- Interactive Pin-Drop Leaflet Map Container -->
+                        <div id="modalMapCanvasWrapper" style="position: relative; width: 100%;">
+                            <!-- Fullscreen Overlay Controls Header -->
+                            <div id="fullscreenMapHeader" class="d-none position-absolute top-0 start-0 w-100 p-3 d-flex flex-wrap justify-content-between align-items-center" style="background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 1005; border-bottom: 1px solid rgba(255, 255, 255, 0.15);">
+                                <div class="d-flex align-items-center gap-2 text-white">
+                                    <i class="bi bi-geo-alt-fill text-primary fs-4"></i>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-white">Full Screen Location Pinpoint</h6>
+                                        <span class="text-white-50 small" style="font-size: 0.75rem;">Click anywhere or drag the pin marker to set your parking facility's exact entrance</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span id="fullscreenCoordBadge" class="badge bg-dark border border-secondary px-3 py-2 text-white font-monospace">28.613900, 77.209000</span>
+                                    <button type="button" class="btn btn-outline-light btn-sm px-3 rounded-pill" id="btnFullscreenDetectGPS">
+                                        <i class="bi bi-crosshair me-1 text-primary"></i> Detect Location
+                                    </button>
+                                    <button type="button" class="btn btn-brand btn-sm px-4 rounded-pill fw-semibold shadow" id="btnCloseFullscreen">
+                                        <i class="bi bi-check2-circle me-1"></i> Apply & Done
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="modalPickerMap" class="rounded-3 border overflow-hidden shadow-inner" style="height: 220px; width: 100%; position: relative;"></div>
+
+                            <!-- Floating corner button on map -->
+                            <button type="button" class="btn btn-light btn-sm shadow-sm position-absolute top-0 end-0 m-2" id="btnMapCornerFullscreen" style="font-size: 0.72rem; border-radius: 8px; z-index: 1000;" title="Expand map to full screen">
+                                <i class="bi bi-arrows-fullscreen text-primary me-1"></i> Expand Fullscreen
+                            </button>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center small text-muted px-1 mt-2 mb-2" style="font-size: 0.75rem;">
+                            <span><i class="bi bi-hand-index-thumb me-1"></i> Click anywhere on the map or drag the pin marker</span>
+                            <span id="coordBadge" class="badge bg-secondary-subtle text-body fw-normal">28.613900, 77.209000</span>
+                        </div>
+
+                        <!-- Option 2 & 3: Two-way Synchronized Lat / Lng inputs -->
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-secondary mb-1">Latitude *</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-transparent text-secondary"><i class="bi bi-compass"></i></span>
+                                    <input type="number" step="any" class="form-control" name="latitude" id="hostLatInput" required value="28.6139" placeholder="Latitude">
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-secondary mb-1">Longitude *</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-transparent text-secondary"><i class="bi bi-compass"></i></span>
+                                    <input type="number" step="any" class="form-control" name="longitude" id="hostLngInput" required value="77.2090" placeholder="Longitude">
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -511,6 +617,238 @@
             btn.disabled = false;
         }
     });
+
+    // 4. Modal Interactive Map Pin Picker (3 Coordinated Methods)
+    let pickerMap = null;
+    let pickerMarker = null;
+
+    function updateCoords(lat, lng) {
+        document.getElementById('hostLatInput').value = lat.toFixed(6);
+        document.getElementById('hostLngInput').value = lng.toFixed(6);
+        const text = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        const badge = document.getElementById('coordBadge');
+        if (badge) badge.innerText = text;
+        const fsBadge = document.getElementById('fullscreenCoordBadge');
+        if (fsBadge) fsBadge.innerText = text;
+    }
+
+    // Fullscreen Map Manager
+    function toggleFullscreenMap(enable) {
+        const wrapper = document.getElementById('modalMapCanvasWrapper');
+        const header = document.getElementById('fullscreenMapHeader');
+        const cornerBtn = document.getElementById('btnMapCornerFullscreen');
+        const isFullscreen = wrapper.classList.contains('map-fullscreen-overlay');
+
+        const shouldEnable = enable !== undefined ? enable : !isFullscreen;
+
+        if (shouldEnable) {
+            wrapper.classList.add('map-fullscreen-overlay');
+            header.classList.remove('d-none');
+            cornerBtn.classList.add('d-none');
+            document.body.style.overflow = 'hidden';
+        } else {
+            wrapper.classList.remove('map-fullscreen-overlay');
+            header.classList.add('d-none');
+            cornerBtn.classList.remove('d-none');
+            document.body.style.overflow = '';
+        }
+
+        setTimeout(() => {
+            if (pickerMap) pickerMap.invalidateSize();
+        }, 120);
+    }
+
+    document.getElementById('btnToggleFullscreenMap').addEventListener('click', () => toggleFullscreenMap(true));
+    document.getElementById('btnMapCornerFullscreen').addEventListener('click', () => toggleFullscreenMap(true));
+    document.getElementById('btnCloseFullscreen').addEventListener('click', () => toggleFullscreenMap(false));
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const wrapper = document.getElementById('modalMapCanvasWrapper');
+            if (wrapper && wrapper.classList.contains('map-fullscreen-overlay')) {
+                toggleFullscreenMap(false);
+            }
+        }
+    });
+
+    // Intelligent Location Resolver (GPS + Network Fallback + Browser Permission Recovery Guide)
+    async function requestHostLocation(triggerBtn) {
+        const origHtml = triggerBtn.innerHTML;
+        triggerBtn.disabled = true;
+        triggerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
+
+        // Check if browser has permanently blocked location
+        let permDenied = false;
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const status = await navigator.permissions.query({ name: 'geolocation' });
+                if (status.state === 'denied') permDenied = true;
+            } catch (e) {}
+        }
+
+        if (permDenied) {
+            triggerBtn.disabled = false;
+            triggerBtn.innerHTML = origHtml;
+            await attemptIpFallbackOrGuide();
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            triggerBtn.disabled = false;
+            triggerBtn.innerHTML = origHtml;
+            await attemptIpFallbackOrGuide();
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                pickerMarker.setLatLng([lat, lng]);
+                pickerMap.setView([lat, lng], 16);
+                updateCoords(lat, lng);
+                triggerBtn.disabled = false;
+                triggerBtn.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i> GPS Set';
+                setTimeout(() => { triggerBtn.innerHTML = origHtml; }, 2500);
+            },
+            async err => {
+                triggerBtn.disabled = false;
+                triggerBtn.innerHTML = origHtml;
+                await attemptIpFallbackOrGuide(err);
+            },
+            { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+        );
+    }
+
+    async function attemptIpFallbackOrGuide(geoErr) {
+        // 1. Silent Network Fallback (ipwho.is) to place pin in user's region
+        try {
+            const res = await fetch('https://ipwho.is/');
+            const data = await res.json();
+            if (data && data.success && data.latitude && data.longitude) {
+                const lat = data.latitude;
+                const lng = data.longitude;
+                pickerMarker.setLatLng([lat, lng]);
+                pickerMap.setView([lat, lng], 14);
+                updateCoords(lat, lng);
+
+                showAlert(
+                    'Location Set via Network',
+                    `<p class="mb-2">We placed your pin in <strong>${data.city || 'your region'}</strong> (${data.region || ''}) via network detection.</p>
+                    <div class="text-start p-3 rounded-3 border small" style="background: var(--bg-surface);">
+                        <strong class="text-body"><i class="bi bi-info-circle me-1 text-primary"></i> For Exact GPS Precision:</strong><br/>
+                        Your browser currently has location blocked for this site. To re-enable high-precision GPS:
+                        <ol class="mb-0 mt-2 ps-3 text-secondary">
+                            <li>Look at the address bar at the top (next to <strong>127.0.0.1:8000</strong>).</li>
+                            <li>Click the <strong>tune/padlock icon</strong> (<i class="bi bi-sliders"></i> or <i class="bi bi-lock-fill"></i>).</li>
+                            <li>Switch <strong>Location</strong> from <em>Block</em> to <strong>Allow</strong>.</li>
+                            <li>Click <strong>Detect Current Location</strong> again.</li>
+                        </ol>
+                    </div>`,
+                    'info'
+                );
+                return;
+            }
+        } catch (e) {}
+
+        // 2. Clear instructions if IP lookup is also unavailable
+        showAlert(
+            'Location Permission Blocked',
+            `<div class="text-start p-3 rounded-3 border small" style="background: var(--bg-surface);">
+                <div class="fw-bold mb-2 text-body"><i class="bi bi-shield-lock-fill text-warning me-1"></i> How to enable location in your browser:</div>
+                <p class="text-secondary mb-2">Chrome/Edge has remembered a blocked location setting for <code>127.0.0.1:8000</code> and will not re-prompt automatically.</p>
+                <ol class="mb-2 ps-3 text-secondary">
+                    <li>Look at your browser's address bar at the top.</li>
+                    <li>Click the <strong>padlock (<i class="bi bi-lock-fill"></i>)</strong> or <strong>site settings icon (<i class="bi bi-sliders"></i>)</strong> to the left of the URL.</li>
+                    <li>Toggle <strong>Location</strong> to <strong>Allow</strong> (or click <em>Reset permissions</em>).</li>
+                    <li>Click <strong>Detect Current Location</strong>.</li>
+                </ol>
+                <div class="text-muted" style="font-size: 0.75rem;">Tip: You can also drag the pin anywhere on the map or type coordinates directly!</div>
+            </div>`,
+            'warning'
+        );
+    }
+
+    function initPickerMap() {
+        const initialLat = parseFloat(document.getElementById('hostLatInput').value) || 28.6139;
+        const initialLng = parseFloat(document.getElementById('hostLngInput').value) || 77.2090;
+
+        if (!pickerMap) {
+            pickerMap = L.map('modalPickerMap', { zoomControl: true }).setView([initialLat, initialLng], 14);
+            
+            // High-Performance Esri / ArcGIS Tile Layer (Fast, Clean, Free, No Watermark, No Localhost Blocks)
+            const isDarkPicker = document.documentElement.getAttribute('data-theme') === 'dark';
+            const pickerTileUrl = isDarkPicker
+                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+                : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+
+            L.tileLayer(pickerTileUrl, {
+                maxZoom: 18,
+                attribution: 'Tiles &copy; Esri'
+            }).addTo(pickerMap);
+
+            const pinIcon = L.divIcon({
+                className: 'custom-pin-wrapper',
+                html: '<div class="smart-marker-pin"><span class="smart-marker-icon">P</span></div>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            pickerMarker = L.marker([initialLat, initialLng], { draggable: true, icon: pinIcon }).addTo(pickerMap);
+            pickerMarker.bindTooltip("Drag pin to adjust exact location", { permanent: false, direction: 'top' });
+
+            // Method 1: Drag Marker
+            pickerMarker.on('dragend', function(e) {
+                const pos = e.target.getLatLng();
+                updateCoords(pos.lat, pos.lng);
+            });
+
+            // Method 1: Click Anywhere on Map
+            pickerMap.on('click', function(e) {
+                pickerMarker.setLatLng(e.latlng);
+                updateCoords(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Method 3: Direct Manual Coordinate Input (Two-way sync)
+            const handleCoordInput = function() {
+                const lat = parseFloat(document.getElementById('hostLatInput').value);
+                const lng = parseFloat(document.getElementById('hostLngInput').value);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    pickerMarker.setLatLng([lat, lng]);
+                    pickerMap.panTo([lat, lng]);
+                    updateCoords(lat, lng);
+                }
+            };
+            document.getElementById('hostLatInput').addEventListener('input', handleCoordInput);
+            document.getElementById('hostLngInput').addEventListener('input', handleCoordInput);
+
+            // Method 2: Detect Current Location buttons
+            document.getElementById('btnDetectHostGPS').addEventListener('click', function() {
+                requestHostLocation(this);
+            });
+            document.getElementById('btnFullscreenDetectGPS').addEventListener('click', function() {
+                requestHostLocation(this);
+            });
+        }
+
+        setTimeout(() => {
+            if (pickerMap) {
+                pickerMap.invalidateSize();
+                const lat = parseFloat(document.getElementById('hostLatInput').value) || 28.6139;
+                const lng = parseFloat(document.getElementById('hostLngInput').value) || 77.2090;
+                pickerMarker.setLatLng([lat, lng]);
+                pickerMap.setView([lat, lng], 14);
+            }
+        }, 200);
+    }
+
+    const newLotModalEl = document.getElementById('newLotModal');
+    if (newLotModalEl) {
+        newLotModalEl.addEventListener('shown.bs.modal', function() {
+            initPickerMap();
+        });
+    }
 </script>
 {% endblock %}
 

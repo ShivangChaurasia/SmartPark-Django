@@ -9,7 +9,7 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, F
 from django.conf import settings
 from django.contrib import messages
 import razorpay
@@ -22,16 +22,50 @@ from .ticket_generator import generate_ticket_pdf
 @login_required
 def checkout_page(request):
     lot_id = request.GET.get('lot_id')
+    lot = get_object_or_404(ParkingLot, pk=lot_id) if lot_id else None
+    if not lot:
+        return redirect('search')
+
+    is_host = getattr(request.user, 'role', '') == 'host'
+    is_owner = (lot.owner_id == request.user.id)
+
+    # Restriction: Hosts can only reserve slots at their own facility for walk-in customers
+    if is_host and not is_owner:
+        messages.warning(
+            request,
+            "Host Mode Active: You cannot reserve spots at other facilities. Switch to Driver Mode to book as a customer."
+        )
+        return redirect('parking_detail', pk=lot.id)
+
     slot_ids = request.GET.get('slot_ids', '')
     start_str = request.GET.get('start_datetime', '')
     end_str = request.GET.get('end_datetime', '')
-
-    lot = get_object_or_404(ParkingLot, pk=lot_id)
 
     selected_slots = []
     if slot_ids:
         s_list = [s.strip() for s in slot_ids.split(',') if s.strip()]
         selected_slots = Slot.objects.filter(id__in=s_list, parking_lot=lot)
+
+    # Compute outstanding no-show penalty for this user (manual_qr no-shows not yet collected)
+    now_co = timezone.now()
+    # First auto-expire any bookings whose window has passed
+    Booking.objects.filter(
+        user=request.user,
+        payment_method='manual_qr',
+        status__in=['upcoming', 'active'],
+        booking_end_datetime__lt=now_co,
+        penalty_applied=False,
+    ).update(status='cancelled', no_show_penalty=F('price'), cancelled_at=now_co)
+
+    outstanding_penalty = float(
+        Booking.objects.filter(
+            user=request.user,
+            payment_method='manual_qr',
+            status='cancelled',
+            no_show_penalty__gt=0,
+            penalty_applied=False,
+        ).aggregate(total=Sum('no_show_penalty'))['total'] or 0
+    )
 
     context = {
         'lot': lot,
@@ -40,6 +74,8 @@ def checkout_page(request):
         'start_datetime': start_str,
         'end_datetime': end_str,
         'razorpay_key': getattr(settings, 'RAZORPAY_KEY', ''),
+        'is_host_booking': is_host and is_owner,
+        'outstanding_penalty': outstanding_penalty,
     }
     return render(request, 'bookings/checkout.html', context)
 
@@ -67,6 +103,14 @@ def api_create_order(request):
             end = timezone.make_aware(end, timezone.get_current_timezone())
 
         lot = get_object_or_404(ParkingLot, pk=lot_id)
+
+        # Host booking rule validation: Host can only book at their own facility
+        is_host = getattr(request.user, 'role', '') == 'host'
+        if is_host and lot.owner_id != request.user.id:
+            return JsonResponse({
+                'success': False,
+                'message': 'Host Mode Active: You can only book slots at your own facility for walk-in customers. Switch to Driver Mode to book at other facilities.'
+            }, status=403)
 
         # Double check collision
         for sid in slot_ids:
@@ -101,6 +145,15 @@ def api_create_order(request):
                 'order_id': order['id'],
                 'amount': order['amount'],
                 'currency': order['currency'],
+                'key': razorpay_key
+            })
+        elif razorpay_key:
+            # Client-side checkout using Razorpay Test Key ID
+            return JsonResponse({
+                'success': True,
+                'order_id': None,
+                'amount': int(round(amount * 100)),
+                'currency': 'INR',
                 'key': razorpay_key
             })
         else:
@@ -140,7 +193,39 @@ def api_create_booking(request):
             end = timezone.make_aware(end, timezone.get_current_timezone())
 
         lot = get_object_or_404(ParkingLot, pk=lot_id)
+
+        # Host booking rule validation: Host can only book at their own facility
+        is_host = getattr(request.user, 'role', '') == 'host'
+        if is_host and lot.owner_id != request.user.id:
+            return JsonResponse({
+                'message': 'Host Mode Active: You can only book slots at your own facility for walk-in customers. Switch to Driver Mode to book at other facilities.'
+            }, status=403)
+
+        is_host_booking = bool(is_host and lot.owner_id == request.user.id)
         duration_minutes = int((end - start).total_seconds() // 60)
+
+        # --- No-show penalty detection (manual_qr bookings only) ---
+        # Scan the user's past manual_qr bookings whose window has already ended but were
+        # never cancelled and never attended (no-show). Mark them and collect 100% penalty
+        # on the current booking total if payment_method is manual_qr.
+        now_check = timezone.now()
+        no_show_bookings = Booking.objects.filter(
+            user=request.user,
+            payment_method='manual_qr',
+            status__in=['upcoming', 'active'],
+            booking_end_datetime__lt=now_check,
+            penalty_applied=False,
+        )
+        outstanding_penalty = 0.0
+        for ns in no_show_bookings:
+            ns.status = 'cancelled'
+            ns.no_show_penalty = ns.price
+            ns.refund_amount = 0.0
+            ns.refund_status = 'none'
+            ns.cancelled_at = now_check
+            ns.penalty_applied = False  # Will be marked True when penalty is collected below
+            ns.save()
+            outstanding_penalty += float(ns.price)
 
         # Razorpay signature verification if live keys and razorpay method used
         if payment_method == 'razorpay':
@@ -180,12 +265,27 @@ def api_create_booking(request):
             if now >= start and now <= end:
                 status = 'active'
 
+            # Determine payment & transaction status
+            if is_host_booking:
+                # Host/Owner booking directly for walk-in customer at the gate desk
+                payment_status = 'paid'
+                txn_status = 'completed'
+                cust_name = data.get('customer_name') or 'Walk-In Customer'
+                cust_phone = data.get('customer_phone') or ''
+                cust_email = data.get('email') or request.user.email
+            else:
+                payment_status = 'paid' if payment_method == 'razorpay' else 'pending_verification'
+                txn_status = 'completed' if payment_method == 'razorpay' else 'pending'
+                cust_name = data.get('customer_name') or request.user.get_full_name() or request.user.username
+                cust_phone = data.get('customer_phone') or getattr(request.user, 'phone', '') or ''
+                cust_email = data.get('email') or request.user.email
+
             booking = Booking.objects.create(
                 booking_id=b_id,
                 user=request.user,
-                booking_email=data.get('email') or request.user.email,
-                customer_name=data.get('customer_name') or request.user.get_full_name() or request.user.username,
-                customer_phone=data.get('customer_phone') or request.user.phone or '',
+                booking_email=cust_email,
+                customer_name=cust_name,
+                customer_phone=cust_phone,
                 vehicle_number=data.get('vehicle_number', ''),
                 parking_lot=lot,
                 slot=slot,
@@ -197,24 +297,46 @@ def api_create_booking(request):
                 time_slot_id=f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}",
                 price=price,
                 status=status,
-                payment_status='paid' if payment_method == 'razorpay' else 'pending_verification',
+                payment_status=payment_status,
                 payment_method=payment_method,
                 razorpay_order_id=data.get('razorpay_order_id'),
                 razorpay_payment_id=data.get('razorpay_payment_id'),
                 invoice_number=f"INV-{b_id}"
             )
 
-            # Record financial transaction
+            # Record financial transaction for this booking
             Transaction.objects.create(
                 user=request.user,
                 owner=lot.owner,
                 booking=booking,
                 amount=price,
                 type='payment',
-                status='completed' if payment_method == 'razorpay' else 'pending',
+                status=txn_status,
                 payment_method=payment_method,
-                description=f"Reservation for slot {slot.slot_number} at {lot.name}"
+                description=f"{'Walk-in customer' if is_host_booking else 'Driver'} reservation for slot {slot.slot_number} at {lot.name}"
             )
+
+            # Collect outstanding no-show penalties on first manual_qr booking slot
+            if outstanding_penalty > 0 and payment_method == 'manual_qr' and not is_host_booking:
+                Transaction.objects.create(
+                    user=request.user,
+                    owner=lot.owner,
+                    booking=booking,
+                    amount=outstanding_penalty,
+                    type='payment',
+                    status='pending',
+                    payment_method='manual_qr',
+                    description=f"No-show penalty carried forward from previous bookings: ₹{outstanding_penalty:.2f}"
+                )
+                # Mark all pending no-show source bookings as penalty collected
+                Booking.objects.filter(
+                    user=request.user,
+                    payment_method='manual_qr',
+                    status='cancelled',
+                    penalty_applied=False,
+                    no_show_penalty__gt=0,
+                ).update(penalty_applied=True)
+                outstanding_penalty = 0.0  # Only charge once (on first slot in this booking batch)
 
             # Also create corresponding earning transaction for the host
             Transaction.objects.create(
@@ -223,7 +345,7 @@ def api_create_booking(request):
                 booking=booking,
                 amount=price,
                 type='earning',
-                status='completed' if payment_method == 'razorpay' else 'pending',
+                status=txn_status,
                 payment_method=payment_method,
                 description=f"Host earning for slot {slot.slot_number} at {lot.name}"
             )
@@ -273,17 +395,28 @@ def user_dashboard(request):
     total_spent = transactions.filter(type='payment', status='completed').aggregate(t=Sum('amount'))['t'] or 0
     total_refunds = transactions.filter(type='refund', status='completed').aggregate(t=Sum('amount'))['t'] or 0
 
+    # Calculate outstanding no-show penalty (unpaid, not yet collected)
+    outstanding_penalty = Booking.objects.filter(
+        user=user,
+        payment_method='manual_qr',
+        status='cancelled',
+        no_show_penalty__gt=0,
+        penalty_applied=False,
+    ).aggregate(total=Sum('no_show_penalty'))['total'] or 0
+
     stats = {
         'total_bookings': bookings.count(),
         'active_sessions': len(categorized['active']),
         'total_spent': total_spent,
         'total_refunds': total_refunds,
+        'outstanding_penalty': float(outstanding_penalty),
     }
 
     context = {
         'categorized': categorized,
         'transactions': transactions[:10],
         'stats': stats,
+        'outstanding_penalty': float(outstanding_penalty),
     }
     return render(request, 'bookings/dashboard.html', context)
 
@@ -302,22 +435,44 @@ def api_cancel_booking(request, pk):
     now = timezone.now()
     diff_minutes = (booking.booking_start_datetime - now).total_seconds() / 60.0
 
-    # Tiered refund algorithm:
+    # --- Pay-at-Site (manual_qr) Hard Lock: Cannot cancel within 60 minutes of start ---
+    # If the booking window starts in < 60 minutes (or has already started), cancellation
+    # is locked. The slot is held; if the customer is a no-show, 100% penalty is carried
+    # forward to their next booking.
+    if booking.payment_method == 'manual_qr' and diff_minutes < 60:
+        return JsonResponse({
+            'message': (
+                'Cancellation is locked for Pay-at-Site reservations within 1 hour of start time. '
+                'If you do not arrive, the full booking charge (₹{:.2f}) will be added as a penalty '
+                'to your next booking.'.format(float(booking.price))
+            ),
+            'locked': True,
+            'penalty_amount': float(booking.price),
+        }, status=400)
+
+    # Tiered refund algorithm for online-paid (razorpay) bookings:
     # >= 120 mins -> 100%
     # >= 30 mins  -> 50%
     # < 30 mins   -> 0%
-    if diff_minutes >= 120:
-        refund_pct = 100
-    elif diff_minutes >= 30:
-        refund_pct = 50
-    else:
+    # For manual_qr (when cancellation IS allowed, i.e. > 60 mins before): full cancellation, no charge.
+    if booking.payment_method == 'manual_qr':
+        # No money was paid yet; simply release the slot.
         refund_pct = 0
-
-    refund_amount = (float(booking.price) * refund_pct) / 100.0
+        refund_amount = 0.0
+        refund_status = 'none'
+    else:
+        if diff_minutes >= 120:
+            refund_pct = 100
+        elif diff_minutes >= 30:
+            refund_pct = 50
+        else:
+            refund_pct = 0
+        refund_amount = (float(booking.price) * refund_pct) / 100.0
+        refund_status = 'completed' if refund_amount > 0 else 'none'
 
     booking.status = 'cancelled'
     booking.refund_amount = refund_amount
-    booking.refund_status = 'completed' if refund_amount > 0 else 'none'
+    booking.refund_status = refund_status
     booking.cancelled_at = now
     booking.save()
 
@@ -336,7 +491,8 @@ def api_cancel_booking(request, pk):
     return JsonResponse({
         'message': 'Booking cancelled successfully',
         'refund_amount': refund_amount,
-        'refund_percentage': refund_pct
+        'refund_percentage': refund_pct,
+        'payment_method': booking.payment_method,
     })
 
 

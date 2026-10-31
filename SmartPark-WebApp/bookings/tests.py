@@ -102,3 +102,35 @@ class BookingEngineTests(TestCase):
         self.assertIsNotNone(pdf_content)
         self.assertTrue(len(pdf_content) > 1000, "Generated PDF must contain valid binary ticket data.")
         self.assertTrue(pdf_content.startswith(b'%PDF'), "PDF content must start with PDF header bytes.")
+
+    def test_host_mode_booking_rules(self):
+        # Create a second host and a second parking lot
+        other_host = User.objects.create_user(username='other_host', email='other@example.com', password='password123', role='host')
+        other_lot = ParkingLot.objects.create(
+            owner=other_host,
+            name='Other Hub',
+            address='Other Street',
+            city='Delhi',
+            pincode='110001',
+            latitude=28.6100,
+            longitude=77.2300,
+            car_price=50.00
+        )
+        other_slot = Slot.objects.create(parking_lot=other_lot, slot_number='O-1', vehicle_type='car')
+
+        # 1. Host accessing their own facility checkout
+        self.client.login(username='host1', password='password123')
+        resp_own = self.client.get(f'/checkout/?lot_id={self.lot.id}&slot_ids={self.slot.id}')
+        self.assertEqual(resp_own.status_code, 200)
+        self.assertTrue(resp_own.context['is_host_booking'], "Host should be permitted to checkout for walk-in customer on own lot.")
+
+        # 2. Host accessing other facility checkout -> should be blocked and redirected
+        resp_other = self.client.get(f'/checkout/?lot_id={other_lot.id}&slot_ids={other_slot.id}')
+        self.assertEqual(resp_other.status_code, 302)
+        self.assertIn(f'/parking/{other_lot.id}/', resp_other.url, "Host must be redirected when attempting to book on another facility.")
+
+        # 3. Driver accessing any facility checkout
+        self.client.login(username='driver1', password='password123')
+        resp_driver = self.client.get(f'/checkout/?lot_id={other_lot.id}&slot_ids={other_slot.id}')
+        self.assertEqual(resp_driver.status_code, 200)
+        self.assertFalse(resp_driver.context['is_host_booking'], "Driver mode should checkout as standard driver.")

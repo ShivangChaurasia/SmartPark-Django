@@ -56,6 +56,11 @@ class Booking(models.Model):
     refund_status = models.CharField(max_length=50, default='none')
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
+    # No-show penalty: set when a manual_qr booking expires without attendance/cancellation.
+    # The penalty (= 100% of booking price) is added to the user's next manual_qr booking total.
+    no_show_penalty = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    penalty_applied = models.BooleanField(default=False)  # True once penalty has been collected on the next booking
+
     attended_at = models.DateTimeField(null=True, blank=True)
     verified_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

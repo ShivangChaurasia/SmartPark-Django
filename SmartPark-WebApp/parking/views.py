@@ -69,15 +69,17 @@ def generate_vehicle_slots(lot, car_count, bike_count, bus_count):
 
 
 def search_page(request):
-    return render(request, 'parking/search.html')
+    is_host_mode = request.user.is_authenticated and getattr(request.user, 'role', '') == 'host'
+    return render(request, 'parking/search.html', {'is_host_mode': is_host_mode})
 
 
 def api_search(request):
     """
-    Discovers nearby parking spots filtered by GPS coordinates (Haversine 10km) or PIN code.
+    Discovers nearby parking spots filtered by GPS coordinates (Haversine formula),
+    city name, PIN code, or facility keyword.
     """
     query = ParkingLot.objects.exclude(status__in=['inactive', 'permanently_removed'])
-    query = query.filter(Q(is_accepting_bookings=True))
+    query = query.filter(is_accepting_bookings=True)
 
     selected_date = request.GET.get('date')
     if selected_date:
@@ -85,28 +87,40 @@ def api_search(request):
             Q(scheduled_removal_date__isnull=True) | Q(scheduled_removal_date__gte=selected_date)
         )
 
-    pincode = request.GET.get('pincode')
-    if pincode:
-        query = query.filter(pincode=pincode.strip())
+    search_query = request.GET.get('pincode') or request.GET.get('q') or request.GET.get('search') or ''
+    if search_query.strip():
+        term = search_query.strip()
+        query = query.filter(
+            Q(pincode__icontains=term) |
+            Q(city__icontains=term) |
+            Q(name__icontains=term) |
+            Q(address__icontains=term)
+        )
 
     lots = list(query)
     lat = request.GET.get('lat')
     lng = request.GET.get('lng')
 
-    results = []
+    has_coords = False
+    user_lat, user_lng = None, None
+    if lat and lng:
+        try:
+            user_lat = float(lat)
+            user_lng = float(lng)
+            has_coords = True
+        except (ValueError, TypeError):
+            has_coords = False
+
+    all_results = []
     for lot in lots:
         distance = None
-        if lat and lng:
+        if has_coords:
             try:
-                user_lat = float(lat)
-                user_lng = float(lng)
                 distance = calculate_haversine(user_lat, user_lng, lot.latitude, lot.longitude)
-                if distance > 15:  # within 15 km radius
-                    continue
-            except (ValueError, TypeError):
-                pass
+            except Exception:
+                distance = None
 
-        results.append({
+        all_results.append({
             'id': lot.id,
             '_id': str(lot.id),
             'name': lot.name,
@@ -121,22 +135,48 @@ def api_search(request):
             'car_slots': lot.car_slots,
             'bike_slots': lot.bike_slots,
             'bus_slots': lot.bus_slots,
+            'total_capacity': lot.total_capacity(),
             'distance': round(distance, 2) if distance is not None else None,
             'status': lot.status,
             'is_accepting_bookings': lot.is_accepting_bookings,
+            'is_owner': bool(request.user.is_authenticated and lot.owner_id == request.user.id),
+            'google_maps_url': f"https://www.google.com/maps/dir/?api=1&destination={lot.latitude},{lot.longitude}",
         })
 
     # Sort by distance if coordinates provided
-    if lat and lng:
-        results.sort(key=lambda x: (x['distance'] is None, x['distance']))
+    if has_coords:
+        all_results.sort(key=lambda x: (x['distance'] is None, x['distance']))
 
-    return JsonResponse({'data': results})
+    # Filter within 25 km if coordinates provided, with fallback to nearest available
+    if has_coords:
+        within_radius = [r for r in all_results if r['distance'] is not None and r['distance'] <= 25]
+        if within_radius:
+            return JsonResponse({'data': within_radius, 'is_fallback': False, 'total': len(within_radius)})
+        else:
+            return JsonResponse({
+                'data': all_results[:10],
+                'is_fallback': True,
+                'total': len(all_results),
+                'message': 'No facilities found within 25 km of your location. Showing nearest active hubs in our network.'
+            })
+
+    return JsonResponse({'data': all_results, 'is_fallback': False, 'total': len(all_results)})
 
 
 @login_required
 def parking_detail(request, pk):
     lot = get_object_or_404(ParkingLot, pk=pk)
-    return render(request, 'parking/detail.html', {'lot': lot, 'id': lot.id})
+    is_owner = bool(request.user.is_authenticated and lot.owner_id == request.user.id)
+    is_host_mode = bool(request.user.is_authenticated and getattr(request.user, 'role', '') == 'host')
+    can_host_book = bool(is_host_mode and is_owner)
+    context = {
+        'lot': lot,
+        'id': lot.id,
+        'is_owner': is_owner,
+        'is_host_mode': is_host_mode,
+        'can_host_book': can_host_book,
+    }
+    return render(request, 'parking/detail.html', context)
 
 
 def api_get_slots(request, pk):

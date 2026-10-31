@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Find Parking Spaces - ParkEase{% endblock %}
+{% block title %}Find Parking Spaces - SmartPark{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -9,6 +9,7 @@
         height: calc(100vh - 75px);
         overflow: hidden;
         background: var(--bg-base);
+        position: relative;
     }
 
     #map {
@@ -29,35 +30,37 @@
     }
 
     .glass-search-results {
-        padding: 1.5rem;
+        padding: 1.25rem 1.5rem;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
         background: var(--glass-bg);
         border: 1px solid var(--border-default);
-        border-radius: 16px;
-        backdrop-filter: blur(20px);
+        border-radius: 18px;
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
         box-shadow: var(--shadow-lg);
     }
 
     .result-item-premium {
-        margin-bottom: 1rem;
+        margin-bottom: 0.85rem;
         cursor: pointer;
         border: 1px solid var(--border-default);
         background: var(--bg-surface);
-        border-radius: 12px;
+        border-radius: 14px;
         padding: 1rem;
-        transition: all 0.2s ease;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .result-item-premium:hover {
         border-color: var(--brand-aqua);
         transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
     }
 
     .result-item-premium.active {
         border-color: var(--brand-aqua);
-        box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.2);
+        box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.25);
         background: var(--bg-hover);
     }
 
@@ -67,7 +70,8 @@
         padding: 4px 10px;
         border-radius: 6px;
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
+        letter-spacing: -0.2px;
     }
 
     .distance-tag {
@@ -84,40 +88,130 @@
     .glass-search-results::-webkit-scrollbar { width: 6px; }
     .glass-search-results::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 10px; }
 
+    /* Custom Leaflet Map Pins */
+    .smart-marker-pin {
+        width: 36px;
+        height: 36px;
+        border-radius: 50% 50% 50% 0;
+        background: linear-gradient(135deg, #0E5E6F 0%, #2EC4B6 100%);
+        position: absolute;
+        transform: rotate(-45deg);
+        left: 50%;
+        top: 50%;
+        margin: -18px 0 0 -18px;
+        box-shadow: 0 4px 14px rgba(14, 94, 111, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #ffffff;
+        cursor: pointer;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .smart-marker-pin:hover {
+        transform: rotate(-45deg) scale(1.2);
+    }
+    .smart-marker-icon {
+        transform: rotate(45deg);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 13px;
+    }
+
+    .user-gps-pulse {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #2EC4B6;
+        border: 3px solid #ffffff;
+        box-shadow: 0 0 0 6px rgba(46, 196, 182, 0.4);
+        animation: gpsPulse 1.8s infinite;
+        position: relative;
+    }
+    .user-gps-pulse::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background: #ffffff;
+        border-radius: 50%;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    @keyframes gpsPulse {
+        0% { box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7); }
+        70% { box-shadow: 0 0 0 16px rgba(46, 196, 182, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(46, 196, 182, 0); }
+    }
+
     @media (max-width: 768px) {
         .search-overlay-refined {
             width: calc(100% - 24px);
             left: 12px;
             top: 12px;
-            max-height: 50vh;
+            max-height: 52vh;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="search-layout position-relative">
+<div class="search-layout">
+    <!-- Interactive Map Canvas -->
     <div id="map"></div>
 
+    <!-- Floating Glassmorphic Search & Hubs Overlay -->
     <div class="search-overlay-refined">
         <div class="glass-search-results flex-grow-1">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="fw-bold mb-0 text-body">Available Hubs</h4>
-                <span id="resultCount" class="badge bg-secondary px-3 py-2 rounded-pill">Searching...</span>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold mb-0 text-body">
+                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>Parking Hubs
+                </h5>
+                <span id="resultCount" class="badge bg-secondary px-3 py-1 rounded-pill small">Scanning...</span>
             </div>
 
+            <!-- On-Map Search & GPS Bar -->
+            <div class="mb-3">
+                <div class="input-group input-group-sm mb-2 shadow-sm rounded-pill overflow-hidden border" style="background: var(--bg-surface); border-color: var(--border-default) !important;">
+                    <span class="input-group-text bg-transparent border-0 px-3">
+                        <i class="bi bi-search text-primary"></i>
+                    </span>
+                    <input type="text" id="mapSearchInput" class="form-control bg-transparent border-0 shadow-none px-1 text-body" placeholder="Search city, PIN or hub name...">
+                    <button class="btn btn-brand btn-sm px-3" type="button" id="btnMapSearch">
+                        Search
+                    </button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm w-100 py-1 rounded-pill" type="button" id="btnMapLocateMe" style="font-size: 0.8rem;">
+                        <i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm py-1 rounded-pill px-3" type="button" id="btnMapReset" style="font-size: 0.8rem;" title="Reset filters">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fallback Alert if applicable -->
+            <div id="fallbackNotice" class="alert alert-info py-2 px-3 small d-none rounded-3 mb-2" style="font-size: 0.8rem;">
+                <i class="bi bi-info-circle-fill me-1"></i>
+                <span id="fallbackNoticeText">Showing nearest available parking hubs across the network.</span>
+            </div>
+
+            <!-- Loading Spinner -->
             <div id="loadingIndicator" class="text-center py-4">
                 <div class="spinner-border spinner-border-sm text-primary mb-2"></div>
-                <div class="small text-muted">Locating nearby parking nodes...</div>
+                <div class="small text-muted">Locating verified parking nodes...</div>
             </div>
 
+            <!-- Hubs List Container -->
             <div id="resultsContainer"></div>
 
+            <!-- Empty State -->
             <div id="noResults" class="text-center py-4 d-none">
                 <i class="bi bi-geo-alt fs-2 text-muted mb-2 d-block"></i>
-                <h5 class="fw-bold mb-1 text-body">No Lots Found</h5>
-                <p class="text-secondary small mb-3">Try widening your search area or checking a different location.</p>
-                <a href="{% url 'search' %}" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
+                <h6 class="fw-bold mb-1 text-body">No Facilities Found</h6>
+                <p class="text-secondary small mb-3">Try widening your search keyword or clearing location filters.</p>
+                <button class="btn btn-outline-secondary btn-sm rounded-pill" onclick="resetSearchFilters()">Reset Filters</button>
             </div>
         </div>
     </div>
@@ -126,101 +220,195 @@
 
 {% block scripts %}
 <script>
+    const isHostMode = {{ is_host_mode|yesno:"true,false" }};
     const urlParams = new URLSearchParams(window.location.search);
-    const pincode = urlParams.get('pincode');
-    const lat = urlParams.get('lat');
-    const lng = urlParams.get('lng');
-    const isLoggedIn = {{ user.is_authenticated|yesno:"true,false" }};
+    let activePincode = urlParams.get('pincode') || '';
+    let activeLat = urlParams.get('lat') || '';
+    let activeLng = urlParams.get('lng') || '';
 
-    let currentTileLayer = null;
-    function setMapTheme() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const tileUrl = isDark 
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-        
-        if (currentTileLayer) map.removeLayer(currentTileLayer);
-        currentTileLayer = L.tileLayer(tileUrl, { attribution: '&copy; CARTO' }).addTo(map);
+    if (activePincode) {
+        document.getElementById('mapSearchInput').value = activePincode;
     }
 
-    let map = L.map('map', { zoomControl: false }).setView([28.6139, 77.2090], 12);
-    setMapTheme();
-
-    const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-            if (mutation.attributeName === 'data-theme') setMapTheme();
-        });
-    });
-    observer.observe(document.documentElement, { attributes: true });
-
+    // 1. Initialize Map with fallback coordinates (India Center / Delhi default)
+    let initialLat = activeLat ? parseFloat(activeLat) : 28.6139;
+    let initialLng = activeLng ? parseFloat(activeLng) : 77.2090;
+    let map = L.map('map', { zoomControl: false }).setView([initialLat, initialLng], 12);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+    // 2. High-Performance Esri / ArcGIS Tile Layer (Fast, Clean, Free, No Watermark, No Localhost Blocks)
+    let currentTileLayer = null;
+
+    function setMapTheme() {
+        if (currentTileLayer) map.removeLayer(currentTileLayer);
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const tileUrl = isDark
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+            : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+
+        currentTileLayer = L.tileLayer(tileUrl, {
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+            maxZoom: 18
+        }).addTo(map);
+    }
+    setMapTheme();
+
+    const themeObserver = new MutationObserver(mutations => {
+        mutations.forEach(m => {
+            if (m.attributeName === 'data-theme' || m.attributeName === 'data-bs-theme') setMapTheme();
+        });
+    });
+    themeObserver.observe(document.documentElement, { attributes: true });
+
+    // Custom Marker Helper Functions
+    function createSmartIcon() {
+        return L.divIcon({
+            className: 'custom-pin-wrapper',
+            html: `<div class="smart-marker-pin"><span class="smart-marker-icon">P</span></div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36]
+        });
+    }
+
+    function createUserGpsIcon() {
+        return L.divIcon({
+            className: 'custom-gps-wrapper',
+            html: `<div class="user-gps-pulse"></div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+            popupAnchor: [0, -12]
+        });
+    }
+
     let markers = {};
-    let bounds = new L.LatLngBounds();
+    let userMarker = null;
 
-    if (lat && lng) {
-        L.circleMarker([lat, lng], {
-            color: '#2EC4B6',
-            fillColor: '#2EC4B6',
-            fillOpacity: 0.35,
-            radius: 12,
-            weight: 2
-        }).addTo(map).bindPopup("<b style='padding: 6px;'>Your Current Location</b>");
-        bounds.extend([lat, lng]);
-    }
+    // 3. Search Data Fetcher
+    async function loadParkingHubs(centerOnUser = false) {
+        const loader = document.getElementById('loadingIndicator');
+        const container = document.getElementById('resultsContainer');
+        const noResults = document.getElementById('noResults');
+        const countBadge = document.getElementById('resultCount');
+        const fallbackAlert = document.getElementById('fallbackNotice');
 
-    let apiParams = new URLSearchParams();
-    if (pincode) apiParams.append('pincode', pincode);
-    if (lat && lng) {
-        apiParams.append('lat', lat);
-        apiParams.append('lng', lng);
-    }
+        loader.classList.remove('d-none');
+        noResults.classList.add('d-none');
+        container.innerHTML = '';
+        fallbackAlert.classList.add('d-none');
 
-    fetch('{% url "api_search" %}?' + apiParams.toString())
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById('loadingIndicator').classList.add('d-none');
-            const hubs = data.data;
-            document.getElementById('resultCount').innerText = `${hubs.length} Hubs Found`;
+        // Clear existing parking markers
+        Object.values(markers).forEach(m => map.removeLayer(m));
+        markers = {};
+
+        const params = new URLSearchParams();
+        if (activePincode) params.append('pincode', activePincode);
+        if (activeLat && activeLng) {
+            params.append('lat', activeLat);
+            params.append('lng', activeLng);
+        }
+
+        try {
+            const res = await fetch(`{% url "api_search" %}?${params.toString()}`);
+            const json = await res.json();
+            loader.classList.add('d-none');
+
+            const hubs = json.data || [];
+            countBadge.innerText = `${hubs.length} Hubs Found`;
+
+            if (json.is_fallback) {
+                fallbackAlert.classList.remove('d-none');
+                if (json.message) document.getElementById('fallbackNoticeText').innerText = json.message;
+            }
 
             if (hubs.length === 0) {
-                document.getElementById('noResults').classList.remove('d-none');
-                if (lat && lng) map.setView([lat, lng], 13);
+                noResults.classList.remove('d-none');
                 return;
             }
 
-            const container = document.getElementById('resultsContainer');
-            hubs.forEach(hub => {
-                const id = hub.id;
-                const marker = L.marker([hub.latitude, hub.longitude]).addTo(map);
-                marker.bindPopup(`
-                    <div class="p-3 text-center" style="min-width: 180px;">
-                        <h6 class="fw-bold mb-1">${hub.name}</h6>
-                        <div class="small text-muted mb-2">${hub.city} &bull; ${hub.pincode}</div>
-                        <div class="fw-bold text-primary mb-2">₹${hub.car_price}<span class="small fw-normal text-muted">/hr (Car)</span></div>
-                        <a href="/parking/${id}/" class="btn btn-brand btn-sm px-3 w-100">Select Slot</a>
+            const bounds = new L.LatLngBounds();
+
+            // Plot user GPS marker if available
+            if (activeLat && activeLng) {
+                if (userMarker) map.removeLayer(userMarker);
+                userMarker = L.marker([activeLat, activeLng], { icon: createUserGpsIcon(), zIndexOffset: 1000 }).addTo(map);
+                userMarker.bindPopup(`
+                    <div class="p-2 text-center" style="min-width: 160px; color: #0F172A;">
+                        <span class="badge bg-success mb-1 px-2 py-1"><i class="bi bi-geo-alt-fill me-1"></i> You Are Here</span>
+                        <div class="small fw-bold mt-1">Current GPS Location</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">${parseFloat(activeLat).toFixed(4)}, ${parseFloat(activeLng).toFixed(4)}</div>
                     </div>
                 `);
+                bounds.extend([activeLat, activeLng]);
+            }
+
+            hubs.forEach(hub => {
+                const id = hub.id;
+                const marker = L.marker([hub.latitude, hub.longitude], { icon: createSmartIcon() }).addTo(map);
+
+                const primaryActionBtn = hub.is_owner
+                    ? `<div class="d-flex gap-1 w-100">
+                         <a href="/owner/parking/${id}/manage/" class="btn btn-brand btn-sm flex-fill py-1" style="font-size: 0.78rem;"><i class="bi bi-sliders me-1"></i> Manage</a>
+                         <a href="/parking/${id}/" class="btn btn-outline-primary btn-sm flex-fill py-1" style="font-size: 0.78rem;"><i class="bi bi-person-plus me-1"></i> Desk</a>
+                       </div>`
+                    : `<a href="/parking/${id}/" class="btn btn-brand btn-sm w-100 py-1" style="font-size: 0.8rem;">${isHostMode ? 'View Facility' : 'Select Slot'}</a>`;
+
+                marker.bindPopup(`
+                    <div class="p-2 text-center" style="min-width: 200px; color: #0F172A;">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            ${hub.is_owner 
+                                ? `<span class="badge bg-primary fw-bold text-white" style="font-size: 0.7rem;">Your Facility</span>`
+                                : `<span class="badge bg-primary-subtle text-primary fw-bold" style="font-size: 0.7rem;">Verified Facility</span>`
+                            }
+                            ${hub.distance ? `<span class="badge bg-light text-muted border" style="font-size: 0.7rem;">${hub.distance} km</span>` : ''}
+                        </div>
+                        <h6 class="fw-bold mb-1 text-truncate">${hub.name}</h6>
+                        <div class="small text-muted mb-2 text-truncate">${hub.city} &bull; ${hub.pincode}</div>
+                        <div class="d-flex justify-content-between align-items-center p-2 rounded mb-2" style="background: rgba(14, 94, 111, 0.08);">
+                            <span class="small fw-semibold text-secondary">Hourly Rate:</span>
+                            <span class="fw-bold" style="color: #0E5E6F;">₹${hub.car_price} (Car)</span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            ${primaryActionBtn}
+                            <a href="${hub.google_maps_url}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm py-1 px-2" title="Navigate in Google Maps">
+                                <i class="bi bi-compass"></i>
+                            </a>
+                        </div>
+                    </div>
+                `);
+
                 markers[id] = marker;
                 bounds.extend([hub.latitude, hub.longitude]);
 
+                // Create Sidebar Card
                 const item = document.createElement('div');
                 item.className = 'result-item-premium';
                 item.id = `card-${id}`;
+
+                const cardActionBtn = hub.is_owner
+                    ? `<div class="d-flex gap-1 flex-grow-1">
+                         <a href="/owner/parking/${id}/manage/" class="btn btn-brand btn-sm flex-fill" style="font-size: 0.8rem;"><i class="bi bi-sliders me-1"></i> Manage</a>
+                         <a href="/parking/${id}/" class="btn btn-outline-primary btn-sm flex-fill" style="font-size: 0.8rem;"><i class="bi bi-person-plus me-1"></i> Customer Desk</a>
+                       </div>`
+                    : `<a href="/parking/${id}/" class="btn btn-brand btn-sm flex-grow-1" style="font-size: 0.82rem;">${isHostMode ? 'View Facility' : 'Reserve Spot'}</a>`;
+
                 item.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <span class="distance-tag">${hub.city} ${hub.distance ? '&bull; ' + hub.distance + ' km' : ''}</span>
                         <div class="price-chip">₹${hub.car_price}/hr</div>
                     </div>
-                    <h5 class="fw-bold mb-1 text-body">${hub.name}</h5>
-                    <p class="text-secondary small mb-3 text-truncate">${hub.address}</p>
+                    ${hub.is_owner ? '<span class="badge bg-primary text-uppercase px-2 py-1 mb-2" style="font-size: 0.65rem;"><i class="bi bi-shield-check me-1"></i> Your Facility</span>' : ''}
+                    <h6 class="fw-bold mb-1 text-body">${hub.name}</h6>
+                    <p class="text-secondary small mb-3 text-truncate" style="line-height: 1.4;">${hub.address}</p>
                     <div class="d-flex gap-2">
-                        <a href="/parking/${id}/" class="btn btn-brand btn-sm flex-grow-1">
-                            Reserve Now
-                        </a>
-                        <button class="btn btn-outline-secondary btn-sm px-3" onclick="focusParking('${id}')" title="Center on Map">
+                        ${cardActionBtn}
+                        <button class="btn btn-outline-secondary btn-sm px-2" onclick="focusParking('${id}')" title="Center on Map">
                             <i class="bi bi-geo-alt"></i>
                         </button>
+                        <a href="${hub.google_maps_url}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm px-2" title="Directions">
+                            <i class="bi bi-compass"></i>
+                        </a>
                     </div>
                 `;
 
@@ -233,20 +421,119 @@
                 container.appendChild(item);
             });
 
-            if (hubs.length > 0) {
-                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+            if (centerOnUser && activeLat && activeLng) {
+                map.setView([activeLat, activeLng], 14, { animate: true });
+                setTimeout(() => { if (userMarker) userMarker.openPopup(); }, 350);
+            } else if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
             }
-        });
+        } catch (err) {
+            loader.classList.add('d-none');
+            showAlert('Map Load Error', 'Unable to fetch parking locations. Please check your network connection.', 'error');
+        }
+    }
 
+    // 4. Two-Way Map Interaction
     window.focusParking = function(id) {
         const marker = markers[id];
         if (marker) {
-            map.setView(marker.getLatLng(), 15);
+            map.setView(marker.getLatLng(), 15, { animate: true });
             marker.openPopup();
             const card = document.getElementById(`card-${id}`);
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     };
+
+    // 5. On-Map Search Handlers
+    document.getElementById('btnMapSearch').addEventListener('click', () => {
+        const val = document.getElementById('mapSearchInput').value.trim();
+        activePincode = val;
+        loadParkingHubs(false);
+    });
+
+    document.getElementById('mapSearchInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('btnMapSearch').click();
+        }
+    });
+
+    // 6. Live GPS Locator
+    document.getElementById('btnMapLocateMe').addEventListener('click', function() {
+        const btn = this;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
+        btn.disabled = true;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    activeLat = pos.coords.latitude;
+                    activeLng = pos.coords.longitude;
+                    loadParkingHubs(true);
+                    btn.innerHTML = '<i class="bi bi-check2-circle text-success me-1"></i> Located';
+                    btn.disabled = false;
+                    setTimeout(() => { btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)'; }, 2500);
+                },
+                err => {
+                    showAlert('GPS Detection', 'Unable to detect device GPS coordinates (' + (err.message || 'Permission denied') + '). Please search by city name or PIN code.', 'info');
+                    btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
+                    btn.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        } else {
+            showAlert('Browser Geolocation', 'Geolocation is not supported by your browser.', 'warning');
+            btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
+            btn.disabled = false;
+        }
+    });
+
+    window.resetSearchFilters = function() {
+        activePincode = '';
+        activeLat = '';
+        activeLng = '';
+        document.getElementById('mapSearchInput').value = '';
+        if (userMarker) {
+            map.removeLayer(userMarker);
+            userMarker = null;
+        }
+        loadParkingHubs(false);
+    };
+
+    document.getElementById('btnMapReset').addEventListener('click', resetSearchFilters);
+
+    // 7. Auto-detect user's current location on initial page load
+    function initMapWithGeolocation() {
+        if (activeLat && activeLng) {
+            loadParkingHubs(true);
+            return;
+        }
+
+        const locateBtn = document.getElementById('btnMapLocateMe');
+        if (navigator.geolocation && !activePincode) {
+            if (locateBtn) locateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    activeLat = pos.coords.latitude;
+                    activeLng = pos.coords.longitude;
+                    if (locateBtn) locateBtn.innerHTML = '<i class="bi bi-check2-circle text-success me-1"></i> Located';
+                    loadParkingHubs(true);
+                    setTimeout(() => {
+                        if (locateBtn) locateBtn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
+                    }, 2500);
+                },
+                err => {
+                    // Fallback to default city network hubs if permission denied or unavailable
+                    if (locateBtn) locateBtn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
+                    loadParkingHubs(false);
+                },
+                { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+            );
+        } else {
+            loadParkingHubs(false);
+        }
+    }
+
+    initMapWithGeolocation();
 </script>
 {% endblock %}
-

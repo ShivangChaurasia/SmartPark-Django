@@ -111,6 +111,24 @@
         </div>
     </div>
 
+    {% if outstanding_penalty > 0 %}
+    <div class="alert border-0 shadow-sm d-flex align-items-start gap-3 p-3 mb-4 rounded-4" style="background: rgba(220, 38, 38, 0.08); border-left: 4px solid #dc2626 !important;">
+        <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-white" style="width: 44px; height: 44px; background: #dc2626; min-width: 44px;">
+            <i class="bi bi-exclamation-circle-fill fs-5"></i>
+        </div>
+        <div class="flex-grow-1">
+            <h6 class="fw-bold mb-1 text-body">Outstanding No-Show Penalty: ₹{{ outstanding_penalty|floatformat:2 }}</h6>
+            <p class="small text-secondary mb-0">
+                You have unpaid charges from a previous <strong>Pay-at-Site</strong> booking where you did not arrive and the cancellation window had expired.
+                This amount (<strong>₹{{ outstanding_penalty|floatformat:2 }}</strong>) will be automatically added to your <em>next Pay-at-Site booking</em>.
+            </p>
+        </div>
+        <div class="text-end flex-shrink-0">
+            <span class="badge bg-danger px-3 py-2 fs-6">₹{{ outstanding_penalty|floatformat:2 }} Due</span>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Navigation Tabs -->
     <ul class="nav nav-pills mb-4 gap-2 border-bottom pb-3" id="dashTabs" role="tablist" style="border-color: var(--border-default) !important;">
         <li class="nav-item">
@@ -242,7 +260,15 @@
                                 </div>
 
                                 <div class="mt-auto pt-3 border-top d-flex gap-2" style="border-color: var(--border-subtle) !important;">
-                                    <button class="btn btn-outline-danger btn-sm flex-grow-1" onclick="openCancelModal('{{ b.id }}', '{{ b.slot.slot_number }}', '{{ b.price }}', '{{ b.booking_start_datetime|date:'c' }}')">
+                                    <button class="btn btn-outline-danger btn-sm flex-grow-1"
+                                        onclick="openCancelModal('{{ b.id }}', '{{ b.slot.slot_number }}', '{{ b.price }}', '{{ b.booking_start_datetime|date:'c' }}', '{{ b.payment_method }}')"
+                                        {% if b.payment_method == 'manual_qr' %}
+                                            id="cancel-btn-{{ b.id }}"
+                                            data-start="{{ b.booking_start_datetime|date:'c' }}"
+                                            data-method="manual_qr"
+                                            data-price="{{ b.price }}"
+                                            data-id="{{ b.id }}"
+                                        {% endif %}>
                                         <i class="bi bi-x-circle me-1"></i> Cancel
                                     </button>
                                     <a href="{% url 'invoice_view' b.id %}" target="_blank" class="btn btn-brand btn-sm flex-grow-1">
@@ -448,22 +474,38 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <p class="text-secondary small mb-3">
-                    Are you sure you want to cancel this reservation?
-                </p>
-                <div class="p-3 rounded mb-3 border bg-light">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted small">Original Price:</span>
-                        <span class="fw-bold text-body" id="cancelOrigPrice">₹0</span>
+                <!-- Locked state (manual_qr within 1 hour) -->
+                <div id="cancelLocked" class="d-none">
+                    <div class="alert alert-danger border-0 rounded-3 d-flex align-items-start gap-3 mb-0" style="background: rgba(220, 38, 38, 0.10);">
+                        <i class="bi bi-lock-fill fs-4 text-danger mt-1 flex-shrink-0"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1 text-danger">Cancellation Locked</h6>
+                            <p class="small mb-2 text-secondary">
+                                You chose <strong>Pay-at-Site</strong> for this reservation. Cancellations are only allowed <strong>more than 1 hour</strong> before the booking start time.
+                            </p>
+                            <p class="small mb-0 text-secondary">
+                                Since you are now within 1 hour of your slot, the booking is locked. 
+                                <strong>If you do not arrive, the full charge of <span id="lockPenaltyAmount"></span> will be carried forward as a penalty on your next booking.</strong>
+                            </p>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted small">Estimated Refund:</span>
-                        <span class="fw-bold text-success" id="cancelRefundEst">₹0</span>
-                    </div>
-                    <div class="small text-muted mt-2" style="font-size: 0.75rem;">
-                        &bull; ≥ 2 hrs before start: 100% refund<br>
-                        &bull; 30m - 2 hrs before start: 50% refund<br>
-                        &bull; &lt; 30m before start: No refund
+                </div>
+
+                <!-- Standard cancellation state -->
+                <div id="cancelStandard">
+                    <p class="text-secondary small mb-3">
+                        Are you sure you want to cancel this reservation?
+                    </p>
+                    <div class="p-3 rounded mb-3 border" style="background: var(--bg-surface);">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Original Price:</span>
+                            <span class="fw-bold text-body" id="cancelOrigPrice">₹0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Estimated Refund:</span>
+                            <span class="fw-bold text-success" id="cancelRefundEst">₹0</span>
+                        </div>
+                        <div id="cancelPolicyNote" class="small text-muted mt-2" style="font-size: 0.75rem;"></div>
                     </div>
                 </div>
                 <input type="hidden" id="cancelBookingId">
@@ -560,7 +602,7 @@
     });
 
     // Cancel Modal
-    window.openCancelModal = function(id, slotNo, price, startIso) {
+    window.openCancelModal = function(id, slotNo, price, startIso, payMethod) {
         document.getElementById('cancelBookingId').value = id;
         document.getElementById('cancelOrigPrice').innerText = '₹' + price;
 
@@ -568,12 +610,42 @@
         const start = new Date(startIso);
         const mins = (start - now) / 60000;
 
-        let pct = 0;
-        if (mins >= 120) pct = 100;
-        else if (mins >= 30) pct = 50;
+        const lockedDiv = document.getElementById('cancelLocked');
+        const standardDiv = document.getElementById('cancelStandard');
+        const confirmBtn = document.getElementById('confirmCancelBtn');
 
-        const refund = (parseFloat(price) * pct) / 100;
-        document.getElementById('cancelRefundEst').innerText = `₹${refund.toFixed(2)} (${pct}%)`;
+        // Pay-at-Site hard lock: cannot cancel within 60 minutes of start
+        if (payMethod === 'manual_qr' && mins < 60) {
+            lockedDiv.classList.remove('d-none');
+            standardDiv.classList.add('d-none');
+            document.getElementById('lockPenaltyAmount').innerText = '₹' + parseFloat(price).toFixed(2);
+            confirmBtn.disabled = true;
+            confirmBtn.classList.replace('btn-danger', 'btn-secondary');
+            confirmBtn.innerHTML = '<i class="bi bi-lock-fill me-1"></i> Cancellation Locked';
+        } else {
+            lockedDiv.classList.add('d-none');
+            standardDiv.classList.remove('d-none');
+            confirmBtn.disabled = false;
+            confirmBtn.classList.replace('btn-secondary', 'btn-danger');
+            confirmBtn.innerHTML = 'Proceed with Cancellation';
+
+            let pct = 0;
+            let policyNote = '';
+            if (payMethod === 'manual_qr') {
+                // manual_qr allowed (> 60 mins): simply release slot, no money charged
+                pct = 0;
+                policyNote = '&bull; Pay-at-Site bookings: free cancellation &gt; 1 hour before start.<br>&bull; Cancellation within 1 hour is <strong>not permitted</strong>; a no-show penalty of 100% will be carried forward.';
+            } else {
+                if (mins >= 120) pct = 100;
+                else if (mins >= 30) pct = 50;
+                policyNote = '&bull; ≥ 2 hrs before start: 100% refund<br>&bull; 30m – 2 hrs before start: 50% refund<br>&bull; &lt; 30m before start: No refund';
+            }
+
+            const refund = (parseFloat(price) * pct) / 100;
+            const refundLabel = payMethod === 'manual_qr' ? 'No charge (slot released)' : `₹${refund.toFixed(2)} (${pct}%)`;
+            document.getElementById('cancelRefundEst').innerText = refundLabel;
+            document.getElementById('cancelPolicyNote').innerHTML = policyNote;
+        }
 
         new bootstrap.Modal(document.getElementById('cancelModal')).show();
     };
@@ -581,6 +653,7 @@
     document.getElementById('confirmCancelBtn').addEventListener('click', async function() {
         const id = document.getElementById('cancelBookingId').value;
         const btn = this;
+        if (btn.disabled) return;
         btn.disabled = true;
 
         try {
@@ -594,7 +667,11 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Cancellation failed.');
 
-            showAlert('Reservation Cancelled', `Your reservation has been cancelled. Calculated refund amount: ₹${data.refund_amount}`, 'info', () => {
+            const msg = data.payment_method === 'manual_qr'
+                ? 'Your Pay-at-Site reservation has been cancelled. The slot has been released.'
+                : `Your reservation has been cancelled. Calculated refund amount: ₹${data.refund_amount}`;
+
+            showAlert('Reservation Cancelled', msg, 'info', () => {
                 window.location.reload();
             });
         } catch (e) {
@@ -602,6 +679,24 @@
             btn.disabled = false;
         }
     });
+
+    // Dynamically disable cancel buttons for manual_qr bookings within 1 hour
+    function updateCancelButtonStates() {
+        const now = new Date();
+        document.querySelectorAll('[data-method="manual_qr"]').forEach(btn => {
+            const start = new Date(btn.dataset.start);
+            const minsLeft = (start - now) / 60000;
+            if (minsLeft < 60 && minsLeft > -1 && !btn.disabled) {
+                btn.disabled = true;
+                btn.title = 'Cancellation locked: Pay-at-Site bookings cannot be cancelled within 1 hour of start.';
+                btn.innerHTML = '<i class="bi bi-lock-fill me-1"></i> Locked';
+                btn.classList.remove('btn-outline-danger');
+                btn.classList.add('btn-outline-secondary');
+            }
+        });
+    }
+    setInterval(updateCancelButtonStates, 15000);
+    updateCancelButtonStates();
 </script>
 {% endblock %}
 

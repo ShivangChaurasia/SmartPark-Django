@@ -94,6 +94,30 @@
         height: 16px;
         border-radius: 4px;
     }
+
+    /* Custom Leaflet Map Pin */
+    .smart-marker-pin {
+        width: 32px;
+        height: 32px;
+        border-radius: 50% 50% 50% 0;
+        background: linear-gradient(135deg, #0E5E6F 0%, #2EC4B6 100%);
+        position: absolute;
+        transform: rotate(-45deg);
+        left: 50%;
+        top: 50%;
+        margin: -16px 0 0 -16px;
+        box-shadow: 0 4px 12px rgba(14, 94, 111, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #ffffff;
+    }
+    .smart-marker-icon {
+        transform: rotate(45deg);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 12px;
+    }
 </style>
 {% endblock %}
 
@@ -124,11 +148,71 @@
         </div>
     </div>
 
+    <!-- Host & Owner Mode Banners -->
+    {% if is_host_mode and is_owner %}
+    <div class="alert alert-info border-0 shadow-sm d-flex flex-wrap align-items-center justify-content-between p-3 mb-4 rounded-4" style="background: rgba(14, 94, 111, 0.12); border-left: 4px solid var(--brand-aqua) !important;">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 44px; height: 44px; background: #0E5E6F;">
+                <i class="bi bi-person-badge-fill fs-5"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-0 text-body">Host Mode &mdash; Customer Booking Desk</h6>
+                <div class="small text-secondary">You own this facility. You can reserve slots on behalf of walk-in customers or arriving drivers directly from this desk.</div>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'manage_lot' lot.id %}" class="btn btn-brand btn-sm px-3 rounded-pill fw-semibold">
+                <i class="bi bi-sliders me-1"></i> Open Facility Console
+            </a>
+        </div>
+    </div>
+    {% elif is_host_mode %}
+    <div class="alert alert-warning border-0 shadow-sm d-flex flex-wrap align-items-center justify-content-between p-3 mb-4 rounded-4" style="background: rgba(245, 158, 11, 0.15); border-left: 4px solid #f59e0b !important;">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-dark" style="width: 44px; height: 44px; background: #f59e0b;">
+                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-0 text-body">Host Mode Active &mdash; Other Facility (Reservation Restricted)</h6>
+                <div class="small text-secondary">In Host Mode, you can only book spots at your own facility for walk-in customers. To reserve a parking spot here for yourself, switch to Driver Mode.</div>
+            </div>
+        </div>
+        <a href="{% url 'switch_role' %}" class="btn btn-warning btn-sm px-3 rounded-pill text-dark fw-semibold shadow-sm">
+            <i class="bi bi-arrow-left-right me-1"></i> Switch to Driver Mode
+        </a>
+    </div>
+    {% elif is_owner %}
+    <div class="alert alert-info border-0 shadow-sm d-flex flex-wrap align-items-center justify-content-between p-3 mb-4 rounded-4" style="background: rgba(14, 94, 111, 0.12); border-left: 4px solid var(--brand-aqua) !important;">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 44px; height: 44px; background: #0E5E6F;">
+                <i class="bi bi-shield-lock-fill fs-5"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-0 text-body">Your Registered Facility (Driver Mode)</h6>
+                <div class="small text-secondary">You own this facility. You are currently in Driver Mode. Switch to Host Mode to manage operations or book for walk-in customers.</div>
+            </div>
+        </div>
+        <a href="{% url 'switch_role' %}" class="btn btn-brand btn-sm px-3 rounded-pill fw-semibold">
+            <i class="bi bi-arrow-left-right me-1"></i> Switch to Host Mode
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Booking Layout -->
     <div class="row g-4">
         <!-- Left: Slot Parameters -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm p-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+                {% if is_host_mode and is_owner %}
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2 rounded-pill small">
+                        <i class="bi bi-person-check-fill me-1"></i> Walk-In Customer Desk
+                    </span>
+                    <a href="{% url 'manage_lot' lot.id %}" class="text-primary small fw-semibold text-decoration-none">
+                        <i class="bi bi-sliders me-1"></i> Console
+                    </a>
+                </div>
+                {% endif %}
                 <h5 class="fw-bold mb-3 text-body"><i class="bi bi-calendar3 me-2 text-primary"></i>Timing & Window</h5>
                 
                 <div class="mb-3">
@@ -167,9 +251,50 @@
                         <span class="text-secondary fw-semibold">Total Amount:</span>
                         <span class="fs-4 fw-bold text-primary" id="summaryPrice">₹0</span>
                     </div>
+
+                    {% if is_host_mode and not is_owner %}
+                    <a href="{% url 'switch_role' %}" class="btn btn-warning w-100 py-2 fw-semibold text-dark shadow-sm">
+                        <i class="bi bi-arrow-left-right me-1"></i> Switch to Driver Mode to Reserve
+                    </a>
+                    <div class="text-center small text-muted mt-2">Host Mode cannot book at other facilities. Switch to Driver Mode to reserve.</div>
+                    {% elif is_host_mode and is_owner %}
+                    <button class="btn btn-brand w-100 py-2 fw-semibold shadow-sm" id="confirmBookingBtn" disabled>
+                        <i class="bi bi-person-plus-fill me-1"></i> Book Slot for Walk-In Customer &rarr;
+                    </button>
+                    <div class="text-center small text-muted mt-2">Book spot for arriving driver and issue gate ticket</div>
+                    {% else %}
                     <button class="btn btn-success w-100 py-2 fw-semibold shadow-sm" id="confirmBookingBtn" disabled>
                         Proceed to Checkout &rarr;
                     </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if is_owner %}
+            <div class="card border-0 shadow-sm p-3 mt-3" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="fw-bold text-body mb-0">Owner Operations</h6>
+                        <p class="text-secondary small mb-0">Live gate scanner, rates & slots</p>
+                    </div>
+                    <a href="{% url 'manage_lot' lot.id %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                        <i class="bi bi-sliders me-1"></i> Console
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Facility Location Mini-Map -->
+            <div class="card border-0 shadow-sm p-3 mt-4" style="background: var(--glass-bg); border: 1px solid var(--border-default) !important; border-radius: 16px; backdrop-filter: blur(16px);">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 text-body"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Facility Location</h6>
+                    <span class="badge bg-secondary-subtle text-body small">{{ lot.city }}</span>
+                </div>
+                <div id="detailMiniMap" class="rounded-3 mb-3 border overflow-hidden" style="height: 190px; width: 100%;"></div>
+                <div class="d-flex gap-2">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ lot.latitude }},{{ lot.longitude }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm w-100 rounded-pill py-2">
+                        <i class="bi bi-compass me-1 text-primary"></i> Get Directions (Google Maps)
+                    </a>
                 </div>
             </div>
         </div>
@@ -357,7 +482,7 @@
 
         if (selectedSlots.length === 0) {
             summaryDiv.classList.add('d-none');
-            confirmBtn.disabled = true;
+            if (confirmBtn) confirmBtn.disabled = true;
         } else {
             summaryDiv.classList.remove('d-none');
             countSpan.innerText = selectedSlots.length;
@@ -370,18 +495,48 @@
 
             const total = selectedSlots.reduce((acc, curr) => acc + curr.price, 0);
             priceSpan.innerText = '₹' + total.toFixed(2);
-            confirmBtn.disabled = false;
+            if (confirmBtn) confirmBtn.disabled = false;
         }
     }
 
-    document.getElementById('confirmBookingBtn').addEventListener('click', function() {
-        const dt = getStartAndEndDateTime();
-        if (!dt || selectedSlots.length === 0) return;
+    const confirmBookingBtn = document.getElementById('confirmBookingBtn');
+    if (confirmBookingBtn) {
+        confirmBookingBtn.addEventListener('click', function() {
+            const dt = getStartAndEndDateTime();
+            if (!dt || selectedSlots.length === 0) return;
 
-        const slotIds = selectedSlots.map(s => s.id).join(',');
-        const url = `{% url 'checkout' %}?lot_id=${parkingId}&slot_ids=${slotIds}&start_datetime=${encodeURIComponent(dt.start_iso)}&end_datetime=${encodeURIComponent(dt.end_iso)}`;
-        window.location.href = url;
+            const slotIds = selectedSlots.map(s => s.id).join(',');
+            const url = `{% url 'checkout' %}?lot_id=${parkingId}&slot_ids=${slotIds}&start_datetime=${encodeURIComponent(dt.start_iso)}&end_datetime=${encodeURIComponent(dt.end_iso)}`;
+            window.location.href = url;
+        });
+    }
+
+    // Mini Map Initialization for Facility Location
+    const lotLat = {{ lot.latitude }};
+    const lotLng = {{ lot.longitude }};
+    const miniMap = L.map('detailMiniMap', { zoomControl: false, attributionControl: false }).setView([lotLat, lotLng], 14);
+
+    const isDarkMini = document.documentElement.getAttribute('data-theme') === 'dark';
+    const miniTileUrl = isDarkMini
+        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+
+    L.tileLayer(miniTileUrl, {
+        maxZoom: 18,
+        attribution: 'Tiles &copy; Esri'
+    }).addTo(miniMap);
+
+    const miniPinIcon = L.divIcon({
+        className: 'custom-pin-mini',
+        html: `<div class="smart-marker-pin"><span class="smart-marker-icon">P</span></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
     });
+    L.marker([lotLat, lotLng], { icon: miniPinIcon })
+        .addTo(miniMap)
+        .bindPopup(`<b>{{ lot.name|escapejs }}</b><br/><span class="small text-muted">{{ lot.address|escapejs }}</span>`)
+        .openPopup();
 
     // Auto-load slots on open
     window.addEventListener('load', loadSlots);
