@@ -8,7 +8,7 @@ from bookings.models import Booking, Transaction
 
 
 class Command(BaseCommand):
-    help = 'Seeds initial demonstration data for ParkEase Django platform.'
+    help = 'Seeds initial demonstration data for SmartPark Django platform.'
 
     def handle(self, *args, **kwargs):
         self.stdout.write("Seeding SmartPark demo dataset...")

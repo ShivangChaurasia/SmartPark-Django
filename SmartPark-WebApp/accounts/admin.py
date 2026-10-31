@@ -21,7 +21,7 @@ class CustomUserAdmin(UserAdmin):
     actions = [approve_kyc, reject_kyc]
 
     fieldsets = UserAdmin.fieldsets + (
-        ('ParkEase Role & KYC', {
+        ('SmartPark Role & KYC', {
             'fields': ('role', 'phone', 'aadhaar_no', 'kyc_status', 'photo', 'property_image', 'onboarding_completed')
         }),
     )

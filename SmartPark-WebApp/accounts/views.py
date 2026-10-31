@@ -19,7 +19,7 @@ def register_view(request):
 
             # Automatically log in new user (INT253 Unit VI: Sessions & Login)
             login(request, user)
-            messages.success(request, f"Welcome to ParkEase, {user.username}! Your account has been created.")
+            messages.success(request, f"Welcome to SmartPark, {user.username}! Your account has been created.")
 
             if user.role == 'host':
                 return redirect('owner_kyc')

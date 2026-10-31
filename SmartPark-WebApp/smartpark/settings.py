@@ -109,7 +109,4 @@ LOGOUT_REDIRECT_URL = 'login'
 RAZORPAY_KEY = os.getenv('RAZORPAY_KEY', '')
 RAZORPAY_SECRET = os.getenv('RAZORPAY_SECRET', '')
 
-# MapTiler Configuration
-MAPTILER_KEY = os.getenv('MAPTILER_KEY', 'fJTNOS3Y93wHYjRBcSIY')
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

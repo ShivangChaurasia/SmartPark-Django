@@ -1,5 +1,5 @@
 """
-URL configuration for parkease project.
+URL configuration for SmartPark project.
 """
 
 from django.contrib import admin
