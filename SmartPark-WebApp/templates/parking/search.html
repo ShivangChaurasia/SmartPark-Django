@@ -458,7 +458,43 @@
         }
     });
 
-    // 6. Live GPS Locator
+    // 6. Live GPS Locator with Instant Network IP Fallback
+    async function resolveSearchFallback(btn) {
+        // Multi-provider network IP fallback
+        let netCoords = null;
+        try {
+            const r1 = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) });
+            const d1 = await r1.json();
+            if (d1 && d1.success && d1.latitude && d1.longitude) {
+                netCoords = { lat: d1.latitude, lng: d1.longitude, name: d1.city || 'your area' };
+            }
+        } catch (e) {}
+
+        if (!netCoords) {
+            try {
+                const r2 = await fetch('https://get.geojs.io/v1/ip/geo.json', { signal: AbortSignal.timeout(4000) });
+                const d2 = await r2.json();
+                if (d2 && d2.latitude && d2.longitude) {
+                    netCoords = { lat: parseFloat(d2.latitude), lng: parseFloat(d2.longitude), name: d2.city || 'your area' };
+                }
+            } catch (e) {}
+        }
+
+        if (netCoords) {
+            activeLat = netCoords.lat;
+            activeLng = netCoords.lng;
+            loadParkingHubs(true);
+            btn.innerHTML = `<i class="bi bi-broadcast text-info me-1"></i> Located (${netCoords.name})`;
+            btn.disabled = false;
+            setTimeout(() => { btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)'; }, 3500);
+            return;
+        }
+
+        showAlert('GPS Detection', 'Unable to auto-detect coordinates. Please type your city name or PIN code in the search bar above.', 'info');
+        btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
+        btn.disabled = false;
+    }
+
     document.getElementById('btnMapLocateMe').addEventListener('click', function() {
         const btn = this;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Locating...';
@@ -470,21 +506,17 @@
                     activeLat = pos.coords.latitude;
                     activeLng = pos.coords.longitude;
                     loadParkingHubs(true);
-                    btn.innerHTML = '<i class="bi bi-check2-circle text-success me-1"></i> Located';
+                    btn.innerHTML = '<i class="bi bi-check2-circle text-success me-1"></i> Located (GPS)';
                     btn.disabled = false;
                     setTimeout(() => { btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)'; }, 2500);
                 },
                 err => {
-                    showAlert('GPS Detection', 'Unable to detect device GPS coordinates (' + (err.message || 'Permission denied') + '). Please search by city name or PIN code.', 'info');
-                    btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
-                    btn.disabled = false;
+                    resolveSearchFallback(btn);
                 },
-                { enableHighAccuracy: true, timeout: 8000 }
+                { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
             );
         } else {
-            showAlert('Browser Geolocation', 'Geolocation is not supported by your browser.', 'warning');
-            btn.innerHTML = '<i class="bi bi-crosshair me-1 text-primary"></i> Locate Me (GPS)';
-            btn.disabled = false;
+            resolveSearchFallback(btn);
         }
     });
 
